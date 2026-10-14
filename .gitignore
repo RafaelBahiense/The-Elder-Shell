@@ -1,0 +1,5 @@
+build/
+.tools/
+.vs/
+*.user
+*.pex
