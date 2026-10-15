@@ -47,7 +47,8 @@ if (!(Test-Path -LiteralPath (Join-Path $CommonLib 'CMakeLists.txt')) -or
 if (!$InstalledDependencies) { $InstalledDependencies = Join-Path $localTools 'vcpkg_installed' }
 $InstalledDependencies = [IO.Path]::GetFullPath($InstalledDependencies)
 $binaryCache = Join-Path $localTools 'vcpkg-cache'
-Run (Join-Path $Vcpkg 'vcpkg.exe') @('install',"--x-manifest-root=$root",
+$downloads = Join-Path $localTools 'downloads'
+Run (Join-Path $Vcpkg 'vcpkg.exe') @('install',"--x-manifest-root=$root", "--downloads-root=$downloads",
     "--x-install-root=$InstalledDependencies",'--triplet=x64-windows-static','--host-triplet=x64-windows',
     "--overlay-ports=$root/cmake/ports",'--binarysource=clear',"--binarysource=files,$binaryCache,readwrite")
 @{ CommonLib=[IO.Path]::GetFullPath($CommonLib); Vcpkg=[IO.Path]::GetFullPath($Vcpkg); InstalledDependencies=$InstalledDependencies } |

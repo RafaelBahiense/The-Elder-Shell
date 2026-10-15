@@ -23,6 +23,8 @@ if(BUILD_PLUGIN)
   set(ENABLE_SKYRIM_SE ON CACHE BOOL "" FORCE)
   set(ENABLE_SKYRIM_AE ON CACHE BOOL "" FORCE)
   set(ENABLE_SKYRIM_VR ON CACHE BOOL "" FORCE)
+  # Keep local checkout paths out of embedded diagnostics and source locations.
+  add_compile_options(/experimental:deterministic "/pathmap:${PROJECT_SOURCE_DIR}=." "/pathmap:${COMMONLIB_SSE_FOLDER}=CommonLibSSE-NG")
   add_subdirectory("${COMMONLIB_SSE_FOLDER}" "dependencies/CommonLibSSE-NG")
   find_path(SKSE_MCP_INCLUDE_DIRS "SKSEMCP/SKSEMenuFramework.hpp" REQUIRED)
   add_library(PapyrusConsole SHARED ${NATIVE_SOURCES})
