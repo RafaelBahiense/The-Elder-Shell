@@ -67,6 +67,14 @@ VM returned; runtime Papyrus errors belong in the game's script log. Commands
 can change game state and are never repeated automatically. See
 [compiled evaluation](compiled-evaluation.md) for the execution contract.
 
+The console counts distinct evaluation types loaded since Skyrim started.
+At 128 it shows a warning, without blocking further evaluations. This counts
+types, not memory. Restarting Skyrim resets the counter; loading a save does not.
+Input-variable and import counts describe the last prepared evaluation. At 32
+inputs or 256 imports, advisory warnings appear without blocking evaluation.
+The compiler cache retains 30 folders, evicting the least recently used as needed.
+Generated scripts under `Scripts/` are retained for saves.
+
 Use **Up/Down** for history. Output supports mouse selection and **Ctrl+C**;
 **Ctrl+A** selects the transcript when it has focus.
 

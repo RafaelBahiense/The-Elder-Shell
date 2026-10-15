@@ -1,0 +1,7 @@
+#pragma once
+
+#include <REL/Version.h>
+
+namespace papyrus_console {
+    inline constexpr REL::Version PluginVersion{@PROJECT_VERSION_MAJOR@, @PROJECT_VERSION_MINOR@, @PROJECT_VERSION_PATCH@, 0};
+}

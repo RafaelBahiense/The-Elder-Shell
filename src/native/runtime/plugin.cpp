@@ -1,10 +1,11 @@
 #include "ui/Menu.h"
 #include "vm/VM.h"
 #include "Compatibility.h"
+#include "Version.h"
 
 #include <spdlog/sinks/basic_file_sink.h>
 
-SKSEPluginInfo(.Version = REL::Version{0, 1, 0, 0}, .Name = "PapyrusConsole"sv, .Author = "Rafael Bahiense"sv,
+SKSEPluginInfo(.Version = papyrus_console::PluginVersion, .Name = "PapyrusConsole"sv, .Author = "Rafael Bahiense"sv,
                .SupportEmail = ""sv, .StructCompatibility = SKSE::StructCompatibility::Independent,
                .RuntimeCompatibility = SKSE::VersionIndependence::AddressLibrary,
                .MinimumSKSEVersion = REL::Version{0, 0, 0, 0})

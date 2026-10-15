@@ -102,6 +102,19 @@ namespace papyrus_console {
                 ImGuiMCP::TextWrapped("%s", UntestedRuntimeWarning.data());
 
             ImGuiMCP::TextUnformatted("Papyrus VM function console");
+            const auto usage = EvaluationUsageSnapshot();
+            ImGuiMCP::Text("Distinct evaluation types loaded since Skyrim started: %zu", usage.loadedTypes);
+            if (usage.loadedTypes >= EvaluationTypeWarningThreshold)
+                ImGuiMCP::TextWrapped(
+                    "Many evaluation types are loaded. Evaluations remain available. Retained VM memory is not "
+                    "measured; restart Skyrim to release loaded types.");
+            ImGuiMCP::Text("Last prepared evaluation: %zu input variables, %zu imported types", usage.inputVariables,
+                           usage.importedTypes);
+            if (usage.inputVariables >= InputVariableWarningThreshold)
+                ImGuiMCP::TextWrapped("Many input variables. This is advisory; evaluation is not blocked.");
+            if (usage.importedTypes >= ImportedTypeWarningThreshold)
+                ImGuiMCP::TextWrapped("Large import graph. Compilation may take longer; evaluation is not blocked.");
+
             ImGuiMCP::TextWrapped(
                 "Write a Papyrus declaration, reassignment, expression or function call. "
                 "Expression results are displayed automatically. Code blocks are unsupported.");

@@ -48,8 +48,9 @@ value as `level`. No quest or attached wrapper instance is created.
 - Cached PEX must match its recorded digest.
 - Compiler timestamps, paths and machine identity are normalized.
 - Cache: `SKSE/Plugins/PapyrusConsole/cache/`.
+- Retain 30 compiler-cache folders. Evict least recently used entries on evaluation.
 - Loader input: `Scripts/PapyrusConsole_Eval_<hash>.pex`.
-- Generated files are immutable. Saved stacks may still need them.
+- Loader scripts are immutable and never evicted. Saved stacks may still need them.
 
 ## Execution contract
 
@@ -61,7 +62,11 @@ value as `level`. No quest or attached wrapper instance is created.
 - Loads clear console variables and abandon requests. Effects are not undone.
 - Requests are never replayed automatically.
 - A lost completion callback requires restarting Skyrim before further evaluation.
-- Limits: 128 generated types per process, 32 input variables, 256 imported types.
+- UI counts distinct evaluation types loaded since startup. Reuse adds no type.
+- At 128 types, show a warning. Further evaluations are allowed; memory is not measured.
+- Restart Skyrim to reset the type counter. Save loads do not reset it.
+- UI shows input-variable and imported-type counts for the last prepared evaluation.
+- At 32 inputs or 256 imports, show advisory warnings. Neither count blocks evaluation.
 - Compilation deadline: 30 seconds, cooperative. It is not a VM execution timeout.
 
 Further detail: [compiler embedding](embedded-compiler.md),

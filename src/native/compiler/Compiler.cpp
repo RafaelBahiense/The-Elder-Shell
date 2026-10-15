@@ -11,6 +11,54 @@
 
 namespace papyrus_console {
     namespace {
+        constexpr std::size_t CacheEntryLimit = 30;
+
+        bool IsCacheEntry(const std::filesystem::directory_entry& entry) {
+            const auto name = entry.path().filename().string();
+            return name.size() == 16 &&
+                   std::all_of(name.begin(), name.end(),
+                               [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }) &&
+                   std::filesystem::is_directory(entry.symlink_status());
+        }
+
+        void RejectReparsePoint(const std::filesystem::path& path) {
+            const auto attributes = GetFileAttributesW(path.c_str());
+            if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_REPARSE_POINT))
+                throw std::runtime_error("Cannot maintain compiler cache through a reparse point or inaccessible path");
+        }
+
+        void TrimCache(const std::filesystem::path& cache, const std::filesystem::path& current) {
+            RejectReparsePoint(current);
+            std::filesystem::last_write_time(current, std::filesystem::file_time_type::clock::now());
+
+            struct Entry {
+                std::filesystem::path path;
+                std::filesystem::file_time_type lastUsed;
+            };
+
+            std::vector<Entry> older;
+            for (const auto& entry : std::filesystem::directory_iterator(cache)) {
+                if (entry.path() != current && IsCacheEntry(entry))
+                    older.push_back({entry.path(), entry.last_write_time()});
+            }
+            std::sort(older.begin(), older.end(), [](const Entry& left, const Entry& right) {
+                return left.lastUsed == right.lastUsed ? left.path < right.path : left.lastUsed < right.lastUsed;
+            });
+
+            const auto root = std::filesystem::canonical(cache);
+            for (std::size_t i = 0; i + CacheEntryLimit <= older.size(); ++i) {
+                const auto& path = older[i].path;
+                // Delete only direct cache children. Never traverse junctions or
+                // links into installed scripts or another directory.
+                RejectReparsePoint(path);
+                if (std::filesystem::canonical(path).parent_path() != root)
+                    throw std::runtime_error("Compiler cache entry lies outside its cache directory");
+                for (const auto& child : std::filesystem::recursive_directory_iterator(path))
+                    RejectReparsePoint(child.path());
+                std::filesystem::remove_all(path);
+            }
+        }
+
         std::filesystem::path ModuleDirectory(HMODULE module) {
             std::wstring path(32768, L'\0');
             const auto size = GetModuleFileNameW(module, path.data(), static_cast<DWORD>(path.size()));
@@ -105,7 +153,10 @@ namespace papyrus_console {
             const auto script = "PapyrusConsole_Eval_" + digest;
             // Keep compiler paths short without changing Windows path settings.
             const auto workspace = cacheDirectory / digest.substr(0, 16);
+            if (std::filesystem::exists(workspace))
+                RejectReparsePoint(workspace);
             std::filesystem::create_directories(workspace / "imports");
+            TrimCache(cacheDirectory, workspace);
             auto source = input.source;
             const auto marker = source.find("PapyrusConsole_Evaluation");
             if (marker == std::string::npos)

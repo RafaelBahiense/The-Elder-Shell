@@ -13,7 +13,6 @@
 
 namespace papyrus_console {
     inline constexpr std::size_t MaximumCommandLength = 4096;
-    inline constexpr std::size_t MaximumArguments = 32;
 
     inline bool Equal(std::string_view left, std::string_view right) {
         if (left.size() != right.size())

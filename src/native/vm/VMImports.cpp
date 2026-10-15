@@ -38,8 +38,6 @@ namespace papyrus_console {
                 required.emplace_back(type->GetName());
             if (type && seen.insert(type->GetName()).second)
                 types.emplace_back(type);
-            if (types.size() > 256)
-                throw std::runtime_error("Evaluation import graph exceeds 256 script types");
         };
         for (const auto& parameter : parameters) {
             auto name = parameter.type;

@@ -29,6 +29,7 @@ namespace papyrus_console {
         EvaluationGate evaluationGate;
         std::jthread evaluationWorker;
         std::set<std::string> evaluationTypes;
+        EvaluationUsage evaluationUsage;
 
         struct CachedInstance {
             InstanceRow row;
@@ -266,9 +267,12 @@ namespace papyrus_console {
                     parameters.push_back({value.type, root});
                     arguments.push_back(value.value);
                 }
-                if (parameters.size() > MaximumArguments)
-                    throw std::runtime_error("Evaluation uses more than 32 console variables");
                 auto imports = SnapshotEvaluationImports(VM::GetSingleton(), statement, parameters);
+                {
+                    std::scoped_lock lock(mutex);
+                    evaluationUsage.inputVariables = parameters.size();
+                    evaluationUsage.importedTypes = imports.compiler.declarations.size();
+                }
                 ResolveStatement(statement, imports.environment);
                 auto input = std::move(imports.compiler);
                 input.source = EvaluationSource(statement, parameters, "PapyrusConsole_Evaluation");
@@ -305,9 +309,6 @@ namespace papyrus_console {
                             return;
                         }
                         try {
-                            if (!evaluationTypes.contains(compiled.script) && evaluationTypes.size() >= 128)
-                                throw std::runtime_error(
-                                    "128 compiled statements loaded; restart Skyrim before adding more");
                             // Immutable files remain available to saved stacks. Never rewrite an existing type.
                             const auto scripts = GameScriptDirectory();
                             CopyEvaluationBytecode(compiled, scripts);
@@ -315,7 +316,10 @@ namespace papyrus_console {
                             Type type;
                             if (!vm || !vm->GetScriptObjectType(RE::BSFixedString(compiled.script), type) || !type)
                                 throw std::runtime_error("Skyrim could not load the generated script");
-                            evaluationTypes.insert(compiled.script);
+                            {
+                                std::scoped_lock lock(mutex);
+                                evaluationTypes.insert(compiled.script);
+                            }
                             SKSE::log::info("Compiled evaluation {}: {}.Run, {} arguments", ticket.id, compiled.script,
                                             arguments.size());
                             RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> completion{
@@ -596,6 +600,13 @@ namespace papyrus_console {
     std::vector<Entry> Snapshot() {
         std::scoped_lock lock(mutex);
         return requests.Entries();
+    }
+
+    EvaluationUsage EvaluationUsageSnapshot() {
+        std::scoped_lock lock(mutex);
+        auto usage = evaluationUsage;
+        usage.loadedTypes = evaluationTypes.size();
+        return usage;
     }
 
     void ClearFinished() {

@@ -63,7 +63,7 @@ no separate compiler is needed in-game. Builds do not modify your game directory
 Developer details: [how evaluation works](docs/compiled-evaluation.md),
 [architecture](docs/architecture.md),
 [embedded compiler](docs/embedded-compiler.md),
-[VM integration](docs/vm-integration.md).
+[VM integration](docs/vm-integration.md), [builds and releases](docs/build-release.md).
 
 ## License
 

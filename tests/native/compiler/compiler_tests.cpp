@@ -101,6 +101,65 @@ namespace {
         CHECK(CompileEvaluation(input, EmbeddedCompiler(), cache).error.empty());
     }
 
+    TEST_CASE("Compiler cache retains thirty entries and refreshes cache hits") {
+        const auto cache = EmbeddedWorkspace() / ("cache-limit-" + std::to_string(GetTickCount64()));
+        CompilerInput input{EvaluationSource(Statement("Int result = 123"), {}, "PapyrusConsole_Evaluation"), {}};
+        const auto initial = CompileEvaluation(input, EmbeddedCompiler(), cache);
+        REQUIRE(initial.error.empty());
+
+        const auto oldest = std::filesystem::file_time_type::clock::now() - std::chrono::hours(24);
+        std::filesystem::last_write_time(initial.bytecode.parent_path(), oldest - std::chrono::hours(1));
+        for (int i = 0; i < 31; ++i) {
+            const auto number = std::to_string(i);
+            const auto entry = cache / (std::string(16 - number.size(), '0') + number);
+            WriteFixture(entry / "imports" / "Fixture.psc", "fixture");
+            std::filesystem::last_write_time(entry, oldest + std::chrono::seconds(i));
+        }
+        WriteFixture(cache / "notes" / "keep.txt", "unrelated");
+
+        const auto hit = CompileEvaluation(input, EmbeddedCompiler(std::chrono::milliseconds(0)), cache);
+        REQUIRE(hit.error.empty());
+        CHECK(std::filesystem::exists(initial.bytecode));
+        CHECK_FALSE(std::filesystem::exists(cache / "0000000000000000"));
+        CHECK_FALSE(std::filesystem::exists(cache / "0000000000000001"));
+        CHECK(std::filesystem::exists(cache / "0000000000000002"));
+        CHECK(std::filesystem::exists(cache / "notes" / "keep.txt"));
+        CHECK(std::distance(std::filesystem::directory_iterator(cache), std::filesystem::directory_iterator{}) == 31);
+    }
+
+    TEST_CASE("Failed compilations trim cache without removing installed scripts") {
+        const auto workspace = EmbeddedWorkspace() / ("cache-failure-" + std::to_string(GetTickCount64()));
+        const auto cache = workspace / "cache";
+        const auto scripts = workspace / "Scripts";
+        CompilerInput input{EvaluationSource(Statement("Int result = 456"), {}, "PapyrusConsole_Evaluation"), {}};
+        const auto initial = CompileEvaluation(input, EmbeddedCompiler(), cache);
+        REQUIRE(initial.error.empty());
+        CopyEvaluationBytecode(initial, scripts);
+        const auto installed = scripts / (initial.script + ".pex");
+        const auto size = std::filesystem::file_size(installed);
+
+        const auto oldest = std::filesystem::file_time_type::clock::now() - std::chrono::hours(24);
+        std::filesystem::last_write_time(initial.bytecode.parent_path(), oldest - std::chrono::hours(1));
+        for (int i = 0; i < 29; ++i) {
+            const auto number = std::to_string(i);
+            const auto entry = cache / (std::string(16 - number.size(), '0') + number);
+            WriteFixture(entry / "fixture.txt", "fixture");
+            std::filesystem::last_write_time(entry, oldest + std::chrono::seconds(i));
+        }
+
+        CompilerInput invalid{"Scriptname PapyrusConsole_Evaluation\ninvalid syntax", {}};
+        const auto failed = CompileEvaluation(invalid, EmbeddedCompiler(), cache);
+        CHECK_FALSE(failed.error.empty());
+        CHECK_FALSE(std::filesystem::exists(initial.bytecode));
+        CHECK(std::distance(std::filesystem::directory_iterator(cache), std::filesystem::directory_iterator{}) == 30);
+        CHECK(std::filesystem::file_size(installed) == size);
+
+        const auto rebuilt = CompileEvaluation(input, EmbeddedCompiler(), cache);
+        REQUIRE(rebuilt.error.empty());
+        CHECK(rebuilt.script == initial.script);
+        CHECK_NOTHROW(CopyEvaluationBytecode(rebuilt, scripts));
+    }
+
     TEST_CASE("Inferred declarations and mutations compile with ordinary Papyrus semantics") {
         const EvaluationEnvironment environment{
             {{"Record",
@@ -123,6 +182,40 @@ namespace {
             INFO(text, ": ", compiled.error);
             CHECK(compiled.error.empty());
         }
+    }
+
+    TEST_CASE("Compiler accepts input and import counts beyond advisory thresholds") {
+        CompilerInput input;
+        std::vector<SourceParameter> parameters;
+
+        SUBCASE("Thirty-three input variables") {
+            std::string expression;
+            for (int i = 0; i < 33; ++i) {
+                const auto name = "value" + std::to_string(i);
+                parameters.push_back({"Int", name});
+                if (!expression.empty())
+                    expression += " + ";
+                expression += name;
+            }
+            input.source =
+                EvaluationSource(Statement("Int result = " + expression), parameters, "PapyrusConsole_Evaluation");
+        }
+
+        SUBCASE("Two hundred fifty-seven inherited script types") {
+            for (int i = 0; i < 257; ++i) {
+                const auto name = "FixtureType" + std::to_string(i);
+                auto source = "Scriptname " + name;
+                if (i > 0)
+                    source += " extends FixtureType" + std::to_string(i - 1);
+                input.declarations.emplace_back(name, source + " Hidden\n");
+            }
+            parameters.push_back({"FixtureType256", "value"});
+            input.source =
+                EvaluationSource(Statement("FixtureType256 result = value"), parameters, "PapyrusConsole_Evaluation");
+        }
+
+        const auto result = CompileEvaluation(input);
+        CHECK_MESSAGE(result.error.empty(), result.error);
     }
 
     TEST_CASE("Cooperative compiler deadlines preserve the next session") {

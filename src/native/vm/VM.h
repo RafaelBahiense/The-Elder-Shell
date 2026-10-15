@@ -1,8 +1,19 @@
 #pragma once
 
 #include "shell/Requests.h"
+#include <cstddef>
 
 namespace papyrus_console {
+    inline constexpr std::size_t EvaluationTypeWarningThreshold = 128;
+    inline constexpr std::size_t InputVariableWarningThreshold = 32;
+    inline constexpr std::size_t ImportedTypeWarningThreshold = 256;
+
+    struct EvaluationUsage {
+        std::size_t loadedTypes = 0;
+        std::size_t inputVariables = 0;
+        std::size_t importedTypes = 0;
+    };
+
     struct InstanceRow {
         std::uint64_t id = 0;
         std::string script, state, handle;
@@ -20,6 +31,7 @@ namespace papyrus_console {
 
     std::string Submit(std::string command);
     std::vector<Entry> Snapshot();
+    EvaluationUsage EvaluationUsageSnapshot();
     void ClearFinished();
     void SessionChanged(bool ready);
 }
