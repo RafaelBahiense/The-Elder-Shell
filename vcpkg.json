@@ -2,5 +2,5 @@
   "name": "papyrus-console",
   "version-string": "0.1.0",
   "builtin-baseline": "ee12231b20c95013c6638d845d04c91559a1d1ff",
-  "dependencies": ["doctest", "spdlog", "rapidcsv", "skse-mcp"]
+  "dependencies": ["doctest", "spdlog", "rapidcsv", "skse-mcp", "caprica"]
 }

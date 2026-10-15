@@ -1,0 +1,51 @@
+diff --git a/Caprica/common/identifier_ref.h b/Caprica/common/identifier_ref.h
+index b3820dc..1686d12 100644
+--- a/Caprica/common/identifier_ref.h
++++ b/Caprica/common/identifier_ref.h
+@@ -101,9 +101,10 @@ namespace fmt {
+ template <>
+ struct formatter<caprica::identifier_ref> {
+   constexpr auto parse(format_parse_context& ctx) {
+-    if (ctx.begin() != ctx.end())
++    auto it = ctx.begin();
++    if (it != ctx.end() && *it != '}')
+       throw format_error("invalid format");
+-    return ctx.end();
++    return it;
+   }
+ 
+   template <class FormatContext>
+diff --git a/Caprica/papyrus/PapyrusIdentifier.h b/Caprica/papyrus/PapyrusIdentifier.h
+index ef01fee..9aaab80 100644
+--- a/Caprica/papyrus/PapyrusIdentifier.h
++++ b/Caprica/papyrus/PapyrusIdentifier.h
+@@ -180,9 +180,10 @@ namespace fmt {
+ template <>
+ struct formatter<caprica::papyrus::PapyrusIdentifierType> {
+   constexpr auto parse(format_parse_context& ctx) {
+-    if (ctx.begin() != ctx.end())
++    auto it = ctx.begin();
++    if (it != ctx.end() && *it != '}')
+       throw format_error("invalid format");
+-    return ctx.end();
++    return it;
+   }
+ 
+   template <class FormatContext>
+diff --git a/Caprica/papyrus/PapyrusType.h b/Caprica/papyrus/PapyrusType.h
+index 68fa926..7ee57b4 100644
+--- a/Caprica/papyrus/PapyrusType.h
++++ b/Caprica/papyrus/PapyrusType.h
+@@ -156,9 +156,10 @@ namespace fmt {
+ template <>
+ struct formatter<caprica::papyrus::PapyrusType> {
+   constexpr auto parse(format_parse_context& ctx) {
+-    if (ctx.begin() != ctx.end())
++    auto it = ctx.begin();
++    if (it != ctx.end() && *it != '}')
+       throw format_error("invalid format");
+-    return ctx.end();
++    return it;
+   }
+ 
+   template <class FormatContext>

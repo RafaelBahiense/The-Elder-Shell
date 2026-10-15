@@ -2,8 +2,7 @@ param(
     [ValidateSet('Build','Test','Analyze')][string]$Target = 'Build',
     [string]$CommonLib,
     [string]$Vcpkg,
-    [string]$InstalledDependencies,
-    [string]$Caprica
+    [string]$InstalledDependencies
 )
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -12,9 +11,7 @@ $config = if (Test-Path -LiteralPath $configPath) { [IO.File]::ReadAllText($conf
 if (!$CommonLib) { $CommonLib = if ($config) { $config.CommonLib } else { Join-Path $root '.tools/CommonLibSSE-NG' } }
 if (!$Vcpkg) { $Vcpkg = if ($config) { $config.Vcpkg } else { Join-Path $root '.tools/vcpkg' } }
 if (!$InstalledDependencies -and $config) { $InstalledDependencies = $config.InstalledDependencies }
-if (!$Caprica -and $config -and $config.PSObject.Properties['Caprica']) { $Caprica = $config.Caprica }
-if (!$Caprica) { $Caprica = Join-Path $root '.tools/caprica/Caprica.exe' }
-if (!(Test-Path -LiteralPath $Caprica)) { throw 'Supply -Caprica <Caprica.exe> or run setup.ps1.' }
+if (!$InstalledDependencies) { $InstalledDependencies = Join-Path $root '.tools/vcpkg_installed' }
 
 function Run([string]$program, [string[]]$arguments) {
     & $program @arguments
@@ -47,34 +44,26 @@ if (!(Test-Path -LiteralPath (Join-Path $CommonLib 'CMakeLists.txt')) -or
 $CommonLib = [IO.Path]::GetFullPath($CommonLib)
 $Vcpkg = [IO.Path]::GetFullPath($Vcpkg)
 [IO.Directory]::CreateDirectory((Join-Path $root '.tools')) | Out-Null
-@{ CommonLib=$CommonLib; Vcpkg=$Vcpkg; InstalledDependencies=$InstalledDependencies; Caprica=[IO.Path]::GetFullPath($Caprica) } |
+@{ CommonLib=$CommonLib; Vcpkg=$Vcpkg; InstalledDependencies=$InstalledDependencies } |
     ConvertTo-Json | ForEach-Object { [IO.File]::WriteAllText($configPath, $_) }
 
 $build = Join-Path $root 'build'
-[IO.Directory]::CreateDirectory((Join-Path $build 'PapyrusConsole')) | Out-Null
-Copy-Item -LiteralPath $Caprica -Destination (Join-Path $build 'PapyrusConsole/Caprica.exe')
-[IO.Directory]::CreateDirectory((Join-Path $build 'PapyrusConsole/licenses')) | Out-Null
-Copy-Item -LiteralPath (Join-Path $root 'licenses/Caprica.txt') -Destination (Join-Path $build 'PapyrusConsole/licenses/Caprica.txt')
-Copy-Item -LiteralPath (Join-Path $root 'licenses/fmt.txt') -Destination (Join-Path $build 'PapyrusConsole/licenses/fmt.txt')
+if (!(Test-Path -LiteralPath (Join-Path $InstalledDependencies 'x64-windows-static/share/Caprica/CapricaConfig.cmake'))) {
+    throw 'Caprica library is not installed. Run ./setup.ps1 with your dependency paths first.'
+}
 $arguments = @('-S',$root,'-B',$build,'-G','Ninja','-DCMAKE_BUILD_TYPE=Release',
     '-DCMAKE_CXX_COMPILER=cl.exe', '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
     "-DCMAKE_TOOLCHAIN_FILE=$Vcpkg/scripts/buildsystems/vcpkg.cmake",
     '-DVCPKG_TARGET_TRIPLET=x64-windows-static', "-DVCPKG_OVERLAY_PORTS=$root/cmake/ports",
     "-DCOMMONLIB_SSE_FOLDER=$CommonLib")
-if ($InstalledDependencies) {
-    $arguments += @("-DVCPKG_INSTALLED_DIR=$InstalledDependencies", '-DVCPKG_MANIFEST_INSTALL=OFF')
-} else { $arguments += '-DVCPKG_MANIFEST_INSTALL=ON' }
+$arguments += @("-DVCPKG_INSTALLED_DIR=$InstalledDependencies", '-DVCPKG_MANIFEST_INSTALL=OFF')
 Run cmake $arguments
 switch ($Target) {
     'Build' {
         Run cmake @('--build',$build,'--parallel','3')
         $plugins = Join-Path $build 'package/SKSE/Plugins'
-        [IO.Directory]::CreateDirectory((Join-Path $plugins 'PapyrusConsole/licenses')) | Out-Null
+        [IO.Directory]::CreateDirectory($plugins) | Out-Null
         Copy-Item -LiteralPath (Join-Path $build 'PapyrusConsole.dll') -Destination $plugins
-        Copy-Item -LiteralPath (Join-Path $build 'PapyrusConsole/Caprica.exe') -Destination (Join-Path $plugins 'PapyrusConsole/Caprica.exe')
-        foreach ($name in @('Caprica.txt','fmt.txt')) {
-            Copy-Item -LiteralPath (Join-Path $root "licenses/$name") -Destination (Join-Path $plugins "PapyrusConsole/licenses/$name")
-        }
         $notices = Join-Path $build 'package/docs/PapyrusConsole'
         [IO.Directory]::CreateDirectory((Join-Path $notices 'licenses')) | Out-Null
         Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination $notices

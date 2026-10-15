@@ -1,4 +1,4 @@
-param([string]$CommonLib, [string]$Vcpkg, [string]$Caprica)
+param([string]$CommonLib, [string]$Vcpkg, [string]$InstalledDependencies)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $localTools = Join-Path $root '.tools'
@@ -44,20 +44,12 @@ if (!$Vcpkg) {
 }
 if (!(Test-Path -LiteralPath (Join-Path $CommonLib 'CMakeLists.txt')) -or
     !(Test-Path -LiteralPath (Join-Path $Vcpkg 'vcpkg.exe'))) { throw 'Dependency paths are incomplete.' }
-if (!$Caprica) {
-    $compilerDirectory = Join-Path $localTools 'caprica'
-    $Caprica = Join-Path $compilerDirectory 'Caprica.exe'
-    if (!(Test-Path -LiteralPath $Caprica)) {
-        $archive = Join-Path $localTools 'Caprica.v0.3.0.7z'
-        Invoke-WebRequest 'https://github.com/Orvid/Caprica/releases/download/v0.3.0/Caprica.v0.3.0.7z' -OutFile $archive
-        if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ine '0037e54cf3a1021e976278d9a637e8ae541aaf9ebeb8d274b6c2cfe32f4ee559') {
-            throw 'Caprica archive hash mismatch.'
-        }
-        [IO.Directory]::CreateDirectory($compilerDirectory) | Out-Null
-        Run tar @('-xf',$archive,'-C',$compilerDirectory)
-    }
-}
-if (!(Test-Path -LiteralPath $Caprica)) { throw 'Caprica executable not found.' }
-@{ CommonLib=[IO.Path]::GetFullPath($CommonLib); Vcpkg=[IO.Path]::GetFullPath($Vcpkg); InstalledDependencies=$null; Caprica=[IO.Path]::GetFullPath($Caprica) } |
+if (!$InstalledDependencies) { $InstalledDependencies = Join-Path $localTools 'vcpkg_installed' }
+$InstalledDependencies = [IO.Path]::GetFullPath($InstalledDependencies)
+$binaryCache = Join-Path $localTools 'vcpkg-cache'
+Run (Join-Path $Vcpkg 'vcpkg.exe') @('install',"--x-manifest-root=$root",
+    "--x-install-root=$InstalledDependencies",'--triplet=x64-windows-static','--host-triplet=x64-windows',
+    "--overlay-ports=$root/cmake/ports",'--binarysource=clear',"--binarysource=files,$binaryCache,readwrite")
+@{ CommonLib=[IO.Path]::GetFullPath($CommonLib); Vcpkg=[IO.Path]::GetFullPath($Vcpkg); InstalledDependencies=$InstalledDependencies } |
     ConvertTo-Json | ForEach-Object { [IO.File]::WriteAllText((Join-Path $localTools 'local.json'), $_) }
 Write-Output 'Project dependencies configured. Run ./build.ps1.'

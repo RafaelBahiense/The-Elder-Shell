@@ -1,0 +1,264 @@
+# Yeah, this will be a pain to maintain...
+
+diff --git a/Caprica/papyrus/PapyrusCompilationContext.h b/Caprica/papyrus/PapyrusCompilationContext.h
+index 49530e0..3b058e6 100644
+--- a/Caprica/papyrus/PapyrusCompilationContext.h
++++ b/Caprica/papyrus/PapyrusCompilationContext.h
+@@ -52,11 +52,11 @@ struct PapyrusCompilationNode final {
+ 
+   ~PapyrusCompilationNode() {
+     if (loadedScript)
+-      delete loadedScript;
++      delete loadedScript->allocator;
++    delete pexWriter;
+     if (pexFile)
+       delete pexFile->alloc;
+-    if (resolvedObject)
+-      delete resolvedObject;
++
+     if (resolutionContext)
+       delete resolutionContext;
+   }
+@@ -138,6 +138,7 @@ private:
+ };
+ 
+ struct PapyrusCompilationContext final {
++  static void resetSession();
+   static void awaitRead();
+ 
+   static void doCompile(CapricaJobManager *jobManager);
+diff --git a/Caprica/papyrus/PapyrusCompilationContext.cpp b/Caprica/papyrus/PapyrusCompilationContext.cpp
+index aed6437..d64bf30 100644
+--- a/Caprica/papyrus/PapyrusCompilationContext.cpp
++++ b/Caprica/papyrus/PapyrusCompilationContext.cpp
+@@ -68,7 +68,7 @@ PapyrusCompilationNode::NodeType PapyrusCompilationNode::getType() const {
+   return type;
+ }
+ 
+-allocators::AtomicChainedPool readAllocator { 1024 * 1024 * 4 };
++
+ void PapyrusCompilationNode::FileReadJob::run() {
+   if (parent->type == NodeType::PapyrusCompile || parent->type == NodeType::PasCompile ||
+       parent->type == NodeType::PexDissassembly) {
+@@ -82,7 +82,8 @@ void PapyrusCompilationNode::FileReadJob::run() {
+     return;
+   }
+   if (parent->filesize < std::numeric_limits<uint32_t>::max()) {
+-    auto buf = readAllocator.allocate(parent->filesize + 1);
++    parent->ownedReadFileData.resize(parent->filesize + 1);
++    auto buf = parent->ownedReadFileData.data();
+     auto fd = _open(parent->sourceFilePath.c_str(), _O_BINARY | _O_RDONLY | _O_SEQUENTIAL);
+     if (fd != -1) {
+       auto len = _read(fd, (void*)buf, (uint32_t)parent->filesize);
+@@ -192,11 +193,10 @@ void PapyrusCompilationNode::FileParseJob::run() {
+   parent->preParseJob.await();
+   auto ext = FSUtils::extensionAsRef(parent->sourceFilePath);
+   if (pathEq(ext, ".psc")) {
+-    auto parser = new parser::PapyrusParser(parent->reportingContext, parent->sourceFilePath, parent->readFileData);
+-    parent->loadedScript = parser->parseScript();
++    parser::PapyrusParser parser(parent->reportingContext, parent->sourceFilePath, parent->readFileData);
++    parent->loadedScript = parser.parseScript();
+     if (parent->type != NodeType::PapyrusImport)
+       parent->reportingContext.exitIfErrors();
+-    delete parser;
+   } else if (pathEq(ext, ".pex")) {
+     if (parent->type == NodeType::PexDissassembly)
+       return;
+@@ -534,6 +534,11 @@ struct PapyrusNamespace final {
+ }
+ 
+ static PapyrusNamespace rootNamespace {};
++void PapyrusCompilationContext::resetSession() {
++  rootNamespace.objects.clear();
++  nodesToCleanUp.clear();
++}
++
+ void PapyrusCompilationContext::pushNamespaceFullContents(
+     const std::string& namespaceName, caseless_unordered_identifier_ref_map<PapyrusCompilationNode*>&& map) {
+   rootNamespace.createNamespace(namespaceName, std::move(map));
+diff --git a/Caprica/papyrus/parser/PapyrusLexer.h b/Caprica/papyrus/parser/PapyrusLexer.h
+index 222abe2..54b0dbf 100644
+--- a/Caprica/papyrus/parser/PapyrusLexer.h
++++ b/Caprica/papyrus/parser/PapyrusLexer.h
+@@ -197,7 +197,7 @@ struct PapyrusLexer {
+   };
+ 
+   explicit PapyrusLexer(CapricaReportingContext& repCtx, const std::string& file, std::string_view data)
+-      : filename(file), reportingContext(repCtx), alloc(new allocators::ChainedPool(1024 * 4)) {
++      : filename(file), reportingContext(repCtx), allocatorOwner(std::make_unique<allocators::ChainedPool>(1024 * 4)), alloc(allocatorOwner.get()) {
+     CapricaStats::lexedFilesCount++;
+     strm = data.data();
+     strmLen = data.size();
+@@ -207,6 +207,7 @@ struct PapyrusLexer {
+   ~PapyrusLexer() = default;
+ 
+ protected:
++  std::unique_ptr<allocators::ChainedPool> allocatorOwner;
+   allocators::ChainedPool* alloc;
+   CapricaReportingContext& reportingContext;
+   std::string filename;
+diff --git a/Caprica/papyrus/parser/PapyrusLexer.cpp b/Caprica/papyrus/parser/PapyrusLexer.cpp
+index 7f26afe..3025f49 100644
+--- a/Caprica/papyrus/parser/PapyrusLexer.cpp
++++ b/Caprica/papyrus/parser/PapyrusLexer.cpp
+@@ -262,6 +262,7 @@ void PapyrusLexer::consume() {
+ 
+ NEVER_INLINE
+ void PapyrusLexer::realConsume() {
++  CapricaReportingContext::checkCancellation();
+ StartOver:
+   auto baseLoc = location;
+   auto c = getChar();
+diff --git a/Caprica/papyrus/parser/PapyrusParser.cpp b/Caprica/papyrus/parser/PapyrusParser.cpp
+index 48874a0..41a4eab 100644
+--- a/Caprica/papyrus/parser/PapyrusParser.cpp
++++ b/Caprica/papyrus/parser/PapyrusParser.cpp
+@@ -125,6 +125,7 @@ PapyrusScript* PapyrusParser::parseScript() {
+   script->allocator = alloc;
+   script->sourceFileName = FSUtils::canonical(filename);
+   script->objects.push_back(parseObject(script));
++  allocatorOwner.release();
+   return script;
+ }
+ 
+diff --git a/Caprica/papyrus/PapyrusObject.h b/Caprica/papyrus/PapyrusObject.h
+index 6502d4f..0dd512e 100644
+--- a/Caprica/papyrus/PapyrusObject.h
++++ b/Caprica/papyrus/PapyrusObject.h
+@@ -68,7 +68,7 @@ struct PapyrusObject final {
+     states.push_back(rootState);
+   }
+   PapyrusObject(const PapyrusObject&) = delete;
+-  ~PapyrusObject() = default;
++  ~PapyrusObject() { delete rootPropertyGroup; }
+ 
+   PapyrusPropertyGroup* getRootPropertyGroup();
+   const PapyrusState* getRootState() const { return rootState; }
+diff --git a/Caprica/papyrus/PapyrusScript.cpp b/Caprica/papyrus/PapyrusScript.cpp
+index 4f66f63..bcddfb4 100644
+--- a/Caprica/papyrus/PapyrusScript.cpp
++++ b/Caprica/papyrus/PapyrusScript.cpp
+@@ -9,7 +9,8 @@
+ namespace caprica { namespace papyrus {
+ 
+ pex::PexFile* PapyrusScript::buildPex(CapricaReportingContext& repCtx) const {
+-  auto alloc = new allocators::ChainedPool(1024 * 4);
++  auto owner = std::make_unique<allocators::ChainedPool>(1024 * 4);
++  auto alloc = owner.get();
+   auto pex = alloc->make<pex::PexFile>(alloc);
+   pex->setGameAndVersion(conf::Papyrus::game);
+   if (conf::CodeGeneration::emitDebugInfo) {
+@@ -48,6 +49,7 @@ pex::PexFile* PapyrusScript::buildPex(CapricaReportingContext& repCtx) const {
+                              EngineLimits::Type::PexFile_UserFlagCount,
+                              pex->getUserFlagCount());
+   }
++  owner.release();
+   return pex;
+ }
+ 
+diff --git a/Caprica/common/CapricaJobManager.h b/Caprica/common/CapricaJobManager.h
+index 61c98f0..6040cbb 100644
+--- a/Caprica/common/CapricaJobManager.h
++++ b/Caprica/common/CapricaJobManager.h
+@@ -1,6 +1,7 @@
+ #pragma once
+ 
+ #include <cassert>
++#include <exception>
+ 
+ #include <atomic>
+ #include <condition_variable>
+@@ -24,6 +25,7 @@ protected:
+   virtual void run() = 0;
+ 
+ private:
++  std::exception_ptr failure;
+   std::atomic<bool> hasRan { false };
+   std::atomic<bool> runningLock { false };
+   std::condition_variable ranCondition;
+diff --git a/Caprica/common/CapricaJobManager.cpp b/Caprica/common/CapricaJobManager.cpp
+index 971a92a..e5451b7 100644
+--- a/Caprica/common/CapricaJobManager.cpp
++++ b/Caprica/common/CapricaJobManager.cpp
+@@ -18,7 +18,7 @@ bool CapricaJob::tryRun() {
+     bool r = runningLock.load(std::memory_order_acquire);
+     if (!r && runningLock.compare_exchange_strong(r, true)) {
+       std::unique_lock<std::mutex> ranLock { ranMutex };
+-      run();
++      try { CapricaReportingContext::checkCancellation(); run(); } catch (...) { failure = std::current_exception(); }
+       hasRan.store(true, std::memory_order_release);
+       ranLock.unlock();
+       ranCondition.notify_all();
+@@ -27,6 +27,7 @@ bool CapricaJob::tryRun() {
+       return false;
+     }
+   }
++  if (failure) std::rethrow_exception(failure);
+   return true;
+ }
+ 
+diff --git a/Caprica/common/CapricaReportingContext.h b/Caprica/common/CapricaReportingContext.h
+index 22deaec..d6d159c 100644
+--- a/Caprica/common/CapricaReportingContext.h
++++ b/Caprica/common/CapricaReportingContext.h
+@@ -18,6 +18,9 @@
+ namespace caprica {
+ 
+ struct CapricaReportingContext final {
++  static inline thread_local std::string* diagnosticSink = nullptr;
++  static inline thread_local void (*checkpoint)() = nullptr;
++  static void checkCancellation() { if (checkpoint) checkpoint(); }
+   std::string filename;
+   // TODO: fix Imports hack
+   bool m_QuietWarnings { false };
+@@ -81,7 +84,7 @@ struct CapricaReportingContext final {
+     warning(location, num, msg, arg1Name, arg2Name, arg3Name);                                      \
+   }
+ #define DEFINE_WARNING_ONCE_A0(num, id, msg)                                           \
+-  static inline bool m_Warn_##num##_##id_emitted { false };                            \
++  bool m_Warn_##num##_##id_emitted { false };                            \
+   NEVER_INLINE void warning_W##num##_##id(CapricaFileLocation location) {              \
+     if (!m_Warn_##num##_##id_emitted) {                                                \
+       warning(location, num, msg "\n\tFurther {} warnings will be suppressed.", num); \
+@@ -89,7 +92,7 @@ struct CapricaReportingContext final {
+     }                                                                                  \
+   }
+ #define DEFINE_WARNING_ONCE_A1(num, id, msg, arg1Type, arg1Name)                                 \
+-  static inline bool m_Warn_##num##_##id_emitted { false };                                      \
++  bool m_Warn_##num##_##id_emitted { false };                                      \
+   NEVER_INLINE void warning_W##num##_##id(CapricaFileLocation location, arg1Type arg1Name) {     \
+     if (!m_Warn_##num##_##id_emitted) {                                                          \
+       warning(location, num, msg "\n\tFurther {} warnings will be suppressed.", arg1Name, num); \
+@@ -97,7 +100,7 @@ struct CapricaReportingContext final {
+     }                                                                                            \
+   }
+ #define DEFINE_WARNING_ONCE_A2(num, id, msg, arg1Type, arg1Name, arg2Type, arg2Name)                            \
+-  static inline bool m_Warn_##num##_##id_emitted { false };                                                     \
++  bool m_Warn_##num##_##id_emitted { false };                                                     \
+   NEVER_INLINE void warning_W##num##_##id(CapricaFileLocation location, arg1Type arg1Name, arg2Type arg2Name) { \
+     if (!m_Warn_##num##_##id_emitted) {                                                                         \
+       warning(location, num, msg "\n\tFurther {} warnings will be suppressed.", arg1Name, arg2Name, num);      \
+diff --git a/Caprica/common/CapricaReportingContext.cpp b/Caprica/common/CapricaReportingContext.cpp
+index a90694c..902ef80 100644
+--- a/Caprica/common/CapricaReportingContext.cpp
++++ b/Caprica/common/CapricaReportingContext.cpp
+@@ -11,6 +11,10 @@
+ namespace caprica {
+ 
+ void CapricaReportingContext::pushToErrorStream(std::string&& msg, bool isError) {
++  if (diagnosticSink) {
++    if (diagnosticSink->size() < 32768) diagnosticSink->append(msg.substr(0, 32768 - diagnosticSink->size())).append("\n");
++    return;
++  }
+   if (!conf::Performance::performanceTestMode || isError) {
+     std::cout.flush();
+     std::cerr << msg << std::endl;
+@@ -18,7 +22,7 @@ void CapricaReportingContext::pushToErrorStream(std::string&& msg, bool isError)
+ }
+ 
+ void CapricaReportingContext::breakIfDebugging() {
+-  if (IsDebuggerPresent())
++  if (!diagnosticSink && IsDebuggerPresent())
+     __debugbreak();
+ }
+ 

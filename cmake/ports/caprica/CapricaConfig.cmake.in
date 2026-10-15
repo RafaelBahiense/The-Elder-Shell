@@ -1,0 +1,6 @@
+@PACKAGE_INIT@
+include(CMakeFindDependencyMacro)
+find_dependency(fmt CONFIG)
+find_dependency(boost_container CONFIG)
+include("${CMAKE_CURRENT_LIST_DIR}/CapricaTargets.cmake")
+set(Caprica_BUILD_ID "@CAPRICA_BUILD_ID@")

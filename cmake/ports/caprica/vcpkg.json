@@ -1,0 +1,14 @@
+{
+  "name": "caprica",
+  "version": "0.3.0",
+  "description": "Caprica compiler library with Papyrus Console session support",
+  "homepage": "https://github.com/Orvid/Caprica",
+  "license": "MIT",
+  "supports": "windows & static & !uwp",
+  "dependencies": [
+    "boost-container",
+    "fmt",
+    { "name": "vcpkg-cmake", "host": true },
+    { "name": "vcpkg-cmake-config", "host": true }
+  ]
+}
