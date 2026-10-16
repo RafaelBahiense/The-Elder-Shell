@@ -35,6 +35,7 @@ ZIP timestamps are fixed; entries contain relative paths.
 ## GitHub Actions
 
 Pushes and pull requests run formatting, tests, analysis and builds on Windows.
+Changes limited to Markdown or `docs/` skip CI.
 Dependency binaries and CommonLib objects are cached separately from project code.
 
 For a release, commit the version change and push a matching `v<version>` tag.

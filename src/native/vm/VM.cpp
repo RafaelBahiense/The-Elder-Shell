@@ -1,4 +1,5 @@
 #include "VM.h"
+#include "ValueDisplay.h"
 #include "shell/Command.h"
 #include "shell/Variables.h"
 #include "compiler/Compiler.h"
@@ -34,6 +35,8 @@ namespace elder_shell {
         std::string completionKey;
         std::uint64_t completionRevision = 0;
         bool completionPending = false;
+        VariableInspection variableInspection;
+        std::uint64_t inspectionRevision = 0;
 
         struct CachedInstance {
             InstanceRow row;
@@ -73,43 +76,6 @@ namespace elder_shell {
                 return false;
             }
             return true;
-        }
-
-        std::string Display(const Variable& value) {
-            if (value.IsArray()) {
-                auto array = value.GetArray();
-                if (!array)
-                    return "None array";
-                std::string text = std::format("{}: {} elements [", value.GetType().TypeAsString(), array->size());
-                const auto count = std::min<std::size_t>(array->size(), 128);
-                for (std::size_t i = 0; i < count; ++i) {
-                    if (i)
-                        text += ", ";
-                    text += Display((*array)[static_cast<std::uint32_t>(i)]);
-                    if (text.size() >= 32768) {
-                        text += ", ...";
-                        break;
-                    }
-                }
-                if (array->size() > count)
-                    text += ", ...";
-                return text + "]";
-            }
-            if (value.IsInt())
-                return std::to_string(value.GetSInt());
-            if (value.IsFloat())
-                return std::format("{}", value.GetFloat());
-            if (value.IsBool())
-                return value.GetBool() ? "true" : "false";
-            if (value.IsString())
-                return std::format("\"{}\"", value.GetString().substr(0, 2048));
-            if (value.IsObject()) {
-                auto object = value.GetObject();
-                return object ? std::format("{} (VM handle {:016X})", object->GetTypeInfo()->GetName(),
-                                            object->GetHandle())
-                              : "None";
-            }
-            return "None";
         }
 
         class Completion final : public RE::BSScript::IStackCallbackFunctor {
@@ -531,7 +497,8 @@ namespace elder_shell {
         return {};
     }
 
-    std::string Submit(std::string line) {
+    std::string SubmitCommand(std::string line, const PropertyInspection* inspection = nullptr,
+                              Ticket* submitted = nullptr) {
         const auto parsed = Parse(line);
         auto* tasks = SKSE::GetTaskInterface();
         if (!tasks)
@@ -543,6 +510,8 @@ namespace elder_shell {
             if (!created)
                 return "32 requests are pending; wait for them to finish";
             ticket = *created;
+            if (submitted)
+                *submitted = ticket;
             if (const auto* error = std::get_if<std::string>(&parsed)) {
                 requests.Reject(ticket, *error);
                 return {};
@@ -552,6 +521,14 @@ namespace elder_shell {
         EvaluationBindings bindings;
         if (command.operation == Operation::Evaluate) {
             std::scoped_lock lock(mutex);
+            if (inspection) {
+                const auto* binding = variables.Find(inspection->variable);
+                if (!binding || binding->pending || !binding->value ||
+                    !SameInspectionOwner(binding->owner, inspection->owner)) {
+                    requests.Reject(ticket, "Variable changed; refresh the inspector before reading its properties");
+                    return {};
+                }
+            }
             for (const auto& [name, binding] : variables.Entries()) {
                 EvaluationBinding value;
                 value.type = binding.declaredType;
@@ -600,6 +577,85 @@ namespace elder_shell {
             }
         });
         return {};
+    }
+
+    std::string Submit(std::string line) {
+        return SubmitCommand(std::move(line));
+    }
+
+    InspectionRead ReadInspectedProperty(PropertyInspection inspection) {
+        InspectionRead result;
+        if (!ValidPropertyInspection(inspection)) {
+            result.error = "Invalid property expression";
+            return result;
+        }
+        result.error = SubmitCommand(inspection.expression, &inspection, &result.ticket);
+        return result;
+    }
+
+    void RefreshVariableInspection() {
+        auto* tasks = SKSE::GetTaskInterface();
+        if (!tasks)
+            return;
+        std::uint64_t revision;
+        {
+            std::scoped_lock lock(mutex);
+            if (variableInspection.refreshing)
+                return;
+            if (!gameReady) {
+                variableInspection.status = "Load a save or start a new game first";
+                return;
+            }
+            variableInspection.refreshing = true;
+            revision = ++inspectionRevision;
+        }
+        tasks->AddTask([revision] {
+            struct Captured {
+                InspectedVariable row;
+                std::optional<Variable> value;
+            };
+            std::vector<Captured> captured;
+            {
+                std::scoped_lock lock(mutex);
+                if (revision != inspectionRevision || !gameReady)
+                    return;
+                for (const auto& [name, binding] : variables.Entries()) {
+                    Captured item;
+                    item.row.name = name;
+                    item.row.owner = binding.owner;
+                    item.row.value.expression = name;
+                    item.row.value.type = binding.declaredType;
+                    item.row.value.summary = binding.pending ? "Pending" : "Failed assignment";
+                    if (!binding.pending)
+                        item.value = binding.value;
+                    captured.push_back(std::move(item));
+                }
+            }
+            VariableInspection snapshot;
+            InspectionBudget budget;
+            try {
+                for (auto& item : captured) {
+                    if (item.value) {
+                        const auto type = item.row.value.type;
+                        item.row.value = InspectValue(*item.value, item.row.name, budget);
+                        if (!type.empty())
+                            item.row.value.type = type;
+                    }
+                    snapshot.variables.push_back(std::move(item.row));
+                }
+                snapshot.status = "Snapshot. Refresh to update values; property getters run only on Read.";
+            } catch (const std::exception& error) {
+                snapshot.status = std::string("Inspection failed: ") + error.what();
+            }
+            std::scoped_lock lock(mutex);
+            if (revision == inspectionRevision && gameReady)
+                variableInspection = std::move(snapshot);
+        });
+    }
+
+    VariableInspection VariableInspectionSnapshot() {
+        std::scoped_lock lock(mutex);
+        return variableInspection;
     }
 
     void RefreshCompletionMetadata(std::string expression) {
@@ -675,6 +731,8 @@ namespace elder_shell {
         std::scoped_lock lock(mutex);
         requests.Loaded();
         variables.Clear();
+        variableInspection = {};
+        ++inspectionRevision;
         completionMetadata.reset();
         completionKey.clear();
         completionPending = false;

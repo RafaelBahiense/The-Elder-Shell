@@ -64,6 +64,15 @@ Choose a variable name and **Use instance**, then access it through
 instance without creating or attaching scripts. Refreshing replaces search
 results; loading clears results and variables.
 
+## Variable inspector
+
+Open **Variables** to see stored types and values. **Refresh variables** updates
+the snapshot; expand arrays to inspect elements. Object properties show their
+types without evaluating getters. **Read (runs getter)** explicitly evaluates a
+property and shows its result here and in Console. Reads can change game state.
+Values may change between refresh and read; reassigned variables require a refresh.
+Large snapshots are truncated; assign an array element to another variable for detail.
+
 ## Execution and output
 
 Some VM calls need the menu closed before they proceed. Completion means the

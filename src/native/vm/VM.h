@@ -1,6 +1,7 @@
 #pragma once
 
 #include "shell/Requests.h"
+#include "shell/Inspection.h"
 #include <cstddef>
 #include <memory>
 
@@ -8,6 +9,9 @@ namespace elder_shell {
     struct EvaluationEnvironment;
     void RefreshCompletionMetadata(std::string expression);
     std::shared_ptr<const EvaluationEnvironment> CompletionMetadataSnapshot();
+    void RefreshVariableInspection();
+    VariableInspection VariableInspectionSnapshot();
+    InspectionRead ReadInspectedProperty(PropertyInspection inspection);
     inline constexpr std::size_t EvaluationTypeWarningThreshold = 128;
     inline constexpr std::size_t InputVariableWarningThreshold = 32;
     inline constexpr std::size_t ImportedTypeWarningThreshold = 256;

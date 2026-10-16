@@ -309,6 +309,7 @@ namespace elder_shell {
         }
         SKSEMenuFramework::SetSection(mod::info::DisplayName);
         SKSEMenuFramework::AddSectionItem("Console", Render);
+        SKSEMenuFramework::AddSectionItem("Variables", RenderVariables);
         SKSEMenuFramework::AddSectionItem("Instances", RenderInstances);
     }
 }

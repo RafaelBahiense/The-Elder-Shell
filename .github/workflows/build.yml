@@ -3,7 +3,13 @@ name: Build and verify
 on:
   push:
     branches: ['**']
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
 
 permissions:
   contents: read
