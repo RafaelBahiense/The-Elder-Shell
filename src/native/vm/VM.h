@@ -2,8 +2,12 @@
 
 #include "shell/Requests.h"
 #include <cstddef>
+#include <memory>
 
 namespace elder_shell {
+    struct EvaluationEnvironment;
+    void RefreshCompletionMetadata(std::string expression);
+    std::shared_ptr<const EvaluationEnvironment> CompletionMetadataSnapshot();
     inline constexpr std::size_t EvaluationTypeWarningThreshold = 128;
     inline constexpr std::size_t InputVariableWarningThreshold = 32;
     inline constexpr std::size_t ImportedTypeWarningThreshold = 256;

@@ -3,6 +3,7 @@
 #include "History.h"
 #include "runtime/Compatibility.h"
 #include "ModInfo.h"
+#include "shell/Completion.h"
 
 #include <SKSEMCP/SKSEMenuFramework.hpp>
 #include <algorithm>
@@ -16,6 +17,10 @@ namespace elder_shell {
         std::string transcript;
         std::vector<char> output{'\0'};
         bool focusCommand = false;
+        bool promptActive = false;
+        std::size_t commandCursor = 0;
+        CompletionResult completion;
+        std::optional<CompletionItem> chosenCompletion;
         std::array<char, 32> explorerForm{};
         std::array<char, 128> explorerScript{};
         std::array<char, 128> instanceVariable{'i', 'n', 's', 't', 'a', 'n', 'c', 'e', '\0'};
@@ -58,10 +63,37 @@ namespace elder_shell {
             error = Submit(input.data());
             if (error.empty())
                 input.fill('\0');
+            completion = {};
+            commandCursor = std::char_traits<char>::length(input.data());
             focusCommand = true;
         }
 
+        void InsertCompletion(ImGuiMCP::ImGuiInputTextCallbackData* data, const CompletionContext& context,
+                              std::string_view name) {
+            if (context.end > static_cast<std::size_t>(data->BufTextLen) ||
+                data->BufTextLen - (context.end - context.begin) + name.size() >= input.size())
+                return;
+            ImGuiMCP::ImGuiInputTextCallbackDataManager::DeleteChars(data, static_cast<int>(context.begin),
+                                                                     static_cast<int>(context.end - context.begin));
+            ImGuiMCP::ImGuiInputTextCallbackDataManager::InsertChars(data, static_cast<int>(context.begin), name.data(),
+                                                                     name.data() + name.size());
+            data->CursorPos = static_cast<int>(context.begin + name.size());
+            data->SelectionStart = data->SelectionEnd = data->CursorPos;
+            history.ResetNavigation();
+        }
+
         int InputCallback(ImGuiMCP::ImGuiInputTextCallbackData* data) {
+            if (data->EventFlag == ImGuiMCP::ImGuiInputTextFlags_CallbackCompletion || chosenCompletion) {
+                if (const auto environment = CompletionMetadataSnapshot()) {
+                    const auto result = Complete(data->Buf, static_cast<std::size_t>(data->CursorPos), *environment);
+                    if (chosenCompletion)
+                        InsertCompletion(data, result.context, chosenCompletion->name);
+                    else if (!result.items.empty())
+                        InsertCompletion(data, result.context, result.items.front().name);
+                }
+                chosenCompletion.reset();
+            }
+            commandCursor = static_cast<std::size_t>(data->CursorPos);
             if (data->EventFlag == ImGuiMCP::ImGuiInputTextFlags_CallbackEdit) {
                 history.ResetNavigation();
                 return 0;
@@ -79,11 +111,12 @@ namespace elder_shell {
                                                                          command->data() + command->size());
                 data->CursorPos = data->BufTextLen;
                 data->SelectionStart = data->SelectionEnd = data->CursorPos;
+                commandCursor = static_cast<std::size_t>(data->CursorPos);
             }
             return 0;
         }
 
-        void RenderOutput(const std::vector<Entry>& entries) {
+        void RenderOutput(const std::vector<Entry>& entries, float assistanceHeight) {
             std::string text;
             for (const auto& entry : entries) {
                 text += std::format("#{} - {}\n> {}\n{}\n\n", entry.ticket.id, StatusName(entry.status), entry.command,
@@ -97,8 +130,8 @@ namespace elder_shell {
             }
             ImGuiMCP::ImVec2 available;
             ImGuiMCP::GetContentRegionAvail(&available);
-            available.y = std::max(
-                1.0f, available.y - ImGuiMCP::GetFrameHeightWithSpacing() - ImGuiMCP::GetStyle()->ItemSpacing.y);
+            available.y = std::max(1.0f, available.y - ImGuiMCP::GetFrameHeightWithSpacing() -
+                                             ImGuiMCP::GetStyle()->ItemSpacing.y - assistanceHeight);
             ImGuiMCP::InputTextMultiline("##Output", output.data(), output.size(), available,
                                          ImGuiMCP::ImGuiInputTextFlags_ReadOnly, nullptr, nullptr);
         }
@@ -135,6 +168,7 @@ namespace elder_shell {
                 "Use Game.GetFormEx(0x...) for runtime references.\n"
                 "Supply every argument, including optional ones.\n"
                 "Up/Down: history. Ctrl+C: copy selection. Ctrl+A: select focused text.\n"
+                "Tab: complete the first suggestion. Click a suggestion to choose it.\n"
                 "Variables clear on save load. Loaded types count since Skyrim started.\n"
                 "Input and import counts describe the last prepared evaluation.";
             ImGuiMCP::ImVec2 available;
@@ -189,17 +223,63 @@ namespace elder_shell {
                 ImGuiMCP::SetKeyboardFocusHere();
                 focusCommand = false;
             }
-            const auto submitted = ImGuiMCP::InputText("##Command", input.data(), input.size(),
-                                                       ImGuiMCP::ImGuiInputTextFlags_EnterReturnsTrue |
-                                                           ImGuiMCP::ImGuiInputTextFlags_CallbackHistory |
-                                                           ImGuiMCP::ImGuiInputTextFlags_CallbackEdit,
-                                                       InputCallback);
+            const auto submitted = ImGuiMCP::InputText(
+                "##Command", input.data(), input.size(),
+                ImGuiMCP::ImGuiInputTextFlags_EnterReturnsTrue | ImGuiMCP::ImGuiInputTextFlags_CallbackHistory |
+                    ImGuiMCP::ImGuiInputTextFlags_CallbackEdit | ImGuiMCP::ImGuiInputTextFlags_CallbackCompletion |
+                    ImGuiMCP::ImGuiInputTextFlags_CallbackAlways,
+                InputCallback);
+            promptActive = ImGuiMCP::IsItemActive();
             ImGuiMCP::PopStyleVar();
             ImGuiMCP::PopStyleColor();
             ImGuiMCP::SameLine();
             const auto clicked = ImGuiMCP::Button("Execute", ImGuiMCP::ImVec2{buttonWidth, 0});
             if (submitted || clicked)
                 Run();
+        }
+
+        float PrepareCompletion() {
+            const auto context = CompletionAt(input.data(), commandCursor);
+            auto expression = context.receiver;
+            if (!context.callReceiver.empty()) {
+                if (!expression.empty())
+                    expression += " + ";
+                expression += context.callReceiver;
+            }
+            RefreshCompletionMetadata(std::move(expression));
+            completion = {};
+            if (promptActive || focusCommand) {
+                if (const auto environment = CompletionMetadataSnapshot())
+                    completion = Complete(input.data(), commandCursor, *environment);
+            }
+            const auto rows = std::min<std::size_t>(5, completion.items.size()) +
+                              (completion.signature.empty() ? 0 : 1) + (completion.parameter.empty() ? 0 : 1) +
+                              (completion.items.empty() ? 0 : 1);
+            return rows == 0 ? 0
+                             : static_cast<float>(rows) * ImGuiMCP::GetTextLineHeightWithSpacing() +
+                                   ImGuiMCP::GetStyle()->WindowPadding.y * 2 + ImGuiMCP::GetStyle()->ItemSpacing.y;
+        }
+
+        void RenderCompletion(float height) {
+            if (height <= 0)
+                return;
+            if (ImGuiMCP::BeginChild("Completion", ImGuiMCP::ImVec2{0, height - ImGuiMCP::GetStyle()->ItemSpacing.y})) {
+                if (!completion.signature.empty())
+                    ImGuiMCP::TextUnformatted(completion.signature.c_str());
+                if (!completion.parameter.empty())
+                    ImGuiMCP::TextUnformatted(completion.parameter.c_str());
+                if (!completion.items.empty())
+                    ImGuiMCP::Text("%zu matches | Tab: first match | Type to narrow", completion.items.size());
+                for (std::size_t i = 0; i < std::min<std::size_t>(5, completion.items.size()); ++i) {
+                    const auto& item = completion.items[i];
+                    const auto label = item.name + " : " + item.description;
+                    if (ImGuiMCP::Selectable(label.c_str(), false)) {
+                        chosenCompletion = item;
+                        focusCommand = true;
+                    }
+                }
+            }
+            ImGuiMCP::EndChild();
         }
 
         void __stdcall Render() {
@@ -215,7 +295,9 @@ namespace elder_shell {
             const auto entries = Snapshot();
             RenderStatus(entries);
             RenderUsage();
-            RenderOutput(entries);
+            const auto assistanceHeight = PrepareCompletion();
+            RenderOutput(entries, assistanceHeight);
+            RenderCompletion(assistanceHeight);
             RenderPrompt();
         }
     }

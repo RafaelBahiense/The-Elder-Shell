@@ -30,6 +30,10 @@ namespace elder_shell {
         std::jthread evaluationWorker;
         std::set<std::string> evaluationTypes;
         EvaluationUsage evaluationUsage;
+        std::shared_ptr<const EvaluationEnvironment> completionMetadata;
+        std::string completionKey;
+        std::uint64_t completionRevision = 0;
+        bool completionPending = false;
 
         struct CachedInstance {
             InstanceRow row;
@@ -520,6 +524,7 @@ namespace elder_shell {
             }
             Variable value;
             value.SetObject(found->object);
+            variables.SetDeclaredType(variable, ticket, value.GetType().TypeAsString());
             variables.Complete(variable, ticket, value);
             requests.Complete(ticket, variable + " = " + Display(value));
         });
@@ -597,6 +602,58 @@ namespace elder_shell {
         return {};
     }
 
+    void RefreshCompletionMetadata(std::string expression) {
+        auto* tasks = SKSE::GetTaskInterface();
+        if (!tasks)
+            return;
+        std::vector<SourceParameter> parameters;
+        auto key = expression;
+        std::uint64_t revision;
+        {
+            std::scoped_lock lock(mutex);
+            if (!gameReady || completionPending)
+                return;
+            for (const auto& [name, binding] : variables.Entries()) {
+                if (!binding.pending && binding.value && DeclarationType(binding.declaredType)) {
+                    parameters.push_back({binding.declaredType, name});
+                    key += "|" + name + ":" + binding.declaredType;
+                }
+            }
+            if (key == completionKey && completionMetadata)
+                return;
+            completionKey = std::move(key);
+            completionPending = true;
+            revision = ++completionRevision;
+        }
+        tasks->AddTask([expression = std::move(expression), parameters = std::move(parameters), revision] {
+            {
+                std::scoped_lock lock(mutex);
+                if (revision != completionRevision || !gameReady)
+                    return;
+            }
+            auto environment = std::make_shared<EvaluationEnvironment>();
+            environment->variables = parameters;
+            try {
+                EvaluationStatement statement;
+                statement.expression = expression;
+                *environment = SnapshotEvaluationImports(VM::GetSingleton(), statement, parameters).environment;
+            } catch (const std::exception& error) {
+                // Completion is advisory. A partial snapshot must not reject a command.
+                SKSE::log::debug("Completion metadata unavailable: {}", error.what());
+            }
+            std::scoped_lock lock(mutex);
+            if (revision != completionRevision || !gameReady)
+                return;
+            completionMetadata = std::move(environment);
+            completionPending = false;
+        });
+    }
+
+    std::shared_ptr<const EvaluationEnvironment> CompletionMetadataSnapshot() {
+        std::scoped_lock lock(mutex);
+        return completionMetadata;
+    }
+
     std::vector<Entry> Snapshot() {
         std::scoped_lock lock(mutex);
         return requests.Entries();
@@ -618,6 +675,10 @@ namespace elder_shell {
         std::scoped_lock lock(mutex);
         requests.Loaded();
         variables.Clear();
+        completionMetadata.reset();
+        completionKey.clear();
+        completionPending = false;
+        ++completionRevision;
         instances.clear();
         explorer = {};
         ++scanRevision;

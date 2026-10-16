@@ -4,6 +4,10 @@ Open **SKSE Menu Framework → The Elder Shell → Console**. Enter statements a
 the bottom `>` prompt. Wait for completion before using a result.
 Expand **Help** for selectable syntax examples and shortcuts.
 
+Suggestions appear as you type variable names or members after `.`. Press **Tab**
+to insert the first match, or click another suggestion. Function calls show their
+parameter types and current argument. Suggestions read metadata without running code.
+
 ## Statements and values
 
 ```papyrus
