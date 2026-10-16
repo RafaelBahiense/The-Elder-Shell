@@ -1,11 +1,12 @@
 #pragma once
+#include "ModInfo.h"
 
 #include "Syntax.h"
 #include "ExpressionTokens.h"
 
 #include <algorithm>
 
-namespace papyrus_console {
+namespace elder_shell {
     struct EvaluationStatement {
         std::string expression;
         std::string resultType;

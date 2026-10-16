@@ -1,0 +1,8 @@
+{
+  "version": "0.1.0",
+  "displayName": "The Elder Shell",
+  "shortName": "TES",
+  "binaryName": "TheElderShell",
+  "scriptPrefix": "TheElderShell",
+  "author": "Rafael Bahiense"
+}

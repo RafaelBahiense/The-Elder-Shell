@@ -2,6 +2,7 @@
 
 | Path | Responsibility |
 | --- | --- |
+| `mod.json`, `cmake/ModInfo.h.in` | Mod identity and generated native constants |
 | `src/native/shell/` | Input, expression types, values and request ownership |
 | `src/native/compiler/` | Signature declarations, embedded Caprica sessions and PEX integrity |
 | `src/native/vm/` | Skyrim integration, metadata snapshots and VM dispatch |
@@ -32,4 +33,4 @@ not require editing a source list.
 
 See [compiled evaluation](compiled-evaluation.md) and
 [VM integration](vm-integration.md) for execution contracts.
-See [compiler embedding](embedded-compiler.md) for the backend boundary and source pin.
+See [compiler embedding](embedded-compiler.md) for dependency and session details.

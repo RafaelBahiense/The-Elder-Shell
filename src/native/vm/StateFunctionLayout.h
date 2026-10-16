@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <optional>
 
-namespace papyrus_console {
+namespace elder_shell {
     struct StateFunctionLayout {
         std::uint32_t count, offset;
 

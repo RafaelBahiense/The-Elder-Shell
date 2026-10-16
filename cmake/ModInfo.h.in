@@ -1,0 +1,17 @@
+#pragma once
+
+// Generated from mod.json.
+namespace mod::info {
+    inline constexpr char DisplayName[] = "@MOD_DISPLAY_NAME_CPP@";
+    inline constexpr char ShortName[] = "@MOD_SHORT_NAME@";
+    inline constexpr char BinaryName[] = "@MOD_BINARY_NAME@";
+    inline constexpr char ScriptPrefix[] = "@MOD_SCRIPT_PREFIX@";
+    inline constexpr char Author[] = "@MOD_AUTHOR_CPP@";
+    inline constexpr char Version[] = "@MOD_VERSION@";
+    inline constexpr unsigned VersionMajor = @PROJECT_VERSION_MAJOR@;
+    inline constexpr unsigned VersionMinor = @PROJECT_VERSION_MINOR@;
+    inline constexpr unsigned VersionPatch = @PROJECT_VERSION_PATCH@;
+    inline constexpr char LogFile[] = "@MOD_BINARY_NAME@.log";
+    inline constexpr char EvaluationPrefix[] = "@MOD_SCRIPT_PREFIX@_Eval_";
+    inline constexpr char EvaluationMarker[] = "ShellEvaluation";
+}

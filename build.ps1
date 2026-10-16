@@ -6,6 +6,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
+$identity = [IO.File]::ReadAllText((Join-Path $root 'mod.json')) | ConvertFrom-Json
 $configPath = Join-Path $root '.tools/local.json'
 $config = if (Test-Path -LiteralPath $configPath) { [IO.File]::ReadAllText($configPath) | ConvertFrom-Json } else { $null }
 if (!$CommonLib) { $CommonLib = if ($config) { $config.CommonLib } else { Join-Path $root '.tools/CommonLibSSE-NG' } }
@@ -61,10 +62,17 @@ Run cmake $arguments
 switch ($Target) {
     'Build' {
         Run cmake @('--build',$build,'--parallel','3')
-        $plugins = Join-Path $build 'package/SKSE/Plugins'
+        $package = [IO.Path]::GetFullPath((Join-Path $build 'package'))
+        if ([IO.Path]::GetDirectoryName($package) -ne [IO.Path]::GetFullPath($build)) { throw 'Invalid package staging path.' }
+        if (Test-Path -LiteralPath $package) {
+            $items = @((Get-Item -LiteralPath $package)) + @(Get-ChildItem -LiteralPath $package -Recurse -Force)
+            if ($items | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }) { throw 'Package staging contains a link; refusing cleanup.' }
+            Remove-Item -LiteralPath $package -Recurse -Force
+        }
+        $plugins = Join-Path $package 'SKSE/Plugins'
         [IO.Directory]::CreateDirectory($plugins) | Out-Null
-        Copy-Item -LiteralPath (Join-Path $build 'PapyrusConsole.dll') -Destination $plugins
-        $notices = Join-Path $build 'package/docs/PapyrusConsole'
+        Copy-Item -LiteralPath (Join-Path $build ($identity.binaryName + '.dll')) -Destination $plugins
+        $notices = Join-Path $package ('docs/' + $identity.binaryName)
         [IO.Directory]::CreateDirectory((Join-Path $notices 'licenses')) | Out-Null
         Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination $notices
         foreach ($notice in (Get-ChildItem -LiteralPath (Join-Path $root 'licenses') -Filter '*.txt')) {

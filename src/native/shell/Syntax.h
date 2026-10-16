@@ -11,7 +11,7 @@
 #include <variant>
 #include <vector>
 
-namespace papyrus_console {
+namespace elder_shell {
     inline constexpr std::size_t MaximumCommandLength = 4096;
 
     inline bool Equal(std::string_view left, std::string_view right) {

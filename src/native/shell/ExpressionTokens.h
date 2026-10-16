@@ -3,7 +3,7 @@
 #include "Syntax.h"
 #include <stdexcept>
 
-namespace papyrus_console {
+namespace elder_shell {
     struct ExpressionToken {
         std::string text;
         bool quoted = false;

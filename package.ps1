@@ -3,6 +3,7 @@ param([string] $Tag)
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
+$identity = [IO.File]::ReadAllText((Join-Path $root 'mod.json')) | ConvertFrom-Json
 & (Join-Path $root 'build.ps1') -Target Build
 if ($LASTEXITCODE -ne 0) { throw 'Build failed; no release archives were produced.' }
 
@@ -10,11 +11,12 @@ $cache = [IO.File]::ReadAllText((Join-Path $root 'build/CMakeCache.txt'))
 if ($cache -notmatch '(?m)^CMAKE_PROJECT_VERSION:STATIC=([0-9]+\.[0-9]+\.[0-9]+)\r?$') {
     throw 'Could not read the configured project version.'
 }
-$version = $Matches[1]
-if ($Tag -and $Tag -cne "v$version") { throw "Release tag must match CMakeLists.txt: v$version" }
+$version = $identity.version
+if ($Matches[1] -cne $version) { throw 'Configured version does not match mod.json.' }
+if ($Tag -and $Tag -cne "v$version") { throw "Release tag must match mod.json: v$version" }
 $dist = Join-Path $root 'build/dist'
 [IO.Directory]::CreateDirectory($dist) | Out-Null
-$baseName = "PapyrusConsole-$version"
+$baseName = "$($identity.binaryName)-$version"
 
 function Add-File($Files, [string] $DiskPath, [string] $ArchivePath) {
     $item = Get-Item -LiteralPath $DiskPath
@@ -80,9 +82,9 @@ function Write-Archive([string] $Destination, $Files) {
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $binary = @{}
-Add-File $binary (Join-Path $root 'build/PapyrusConsole.dll') 'SKSE/Plugins/PapyrusConsole.dll'
-Add-File $binary (Join-Path $root 'LICENSE') 'docs/PapyrusConsole/LICENSE'
-Add-Tree $binary (Join-Path $root 'licenses') 'docs/PapyrusConsole/licenses'
+Add-File $binary (Join-Path $root ('build/' + $identity.binaryName + '.dll')) ('SKSE/Plugins/' + $identity.binaryName + '.dll')
+Add-File $binary (Join-Path $root 'LICENSE') ('docs/' + $identity.binaryName + '/LICENSE')
+Add-Tree $binary (Join-Path $root 'licenses') ('docs/' + $identity.binaryName + '/licenses')
 
 $source = @{}
 foreach ($directory in @('src', 'tests', 'cmake', 'docs', 'licenses', '.github')) {
@@ -91,7 +93,7 @@ foreach ($directory in @('src', 'tests', 'cmake', 'docs', 'licenses', '.github')
     }
 }
 foreach ($file in (Get-ChildItem -LiteralPath $root -File -Force)) {
-    if ($file.Extension -eq '.ps1' -or $file.Name -in @('CMakeLists.txt', 'vcpkg.json', 'README.md', 'LICENSE', '.clang-format', '.editorconfig', '.gitignore', 'AGENTS.md')) {
+    if ($file.Extension -eq '.ps1' -or $file.Name -in @('mod.json', 'CMakeLists.txt', 'vcpkg.json', 'README.md', 'LICENSE', '.clang-format', '.editorconfig', '.gitignore', 'AGENTS.md')) {
         Add-File $source $file.FullName $file.Name
     }
 }

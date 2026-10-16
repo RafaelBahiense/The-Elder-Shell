@@ -2,7 +2,7 @@
 
 #include "Requests.h"
 
-namespace papyrus_console {
+namespace elder_shell {
     // The caller owns synchronization. Only the owning job can release the gate.
     class EvaluationGate {
     public:

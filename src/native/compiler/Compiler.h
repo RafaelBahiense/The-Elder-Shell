@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace papyrus_console {
+namespace elder_shell {
     struct CompilerInput {
         std::string source;
         std::vector<std::pair<std::string, std::string>> declarations;

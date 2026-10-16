@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace papyrus_console {
+namespace elder_shell {
     inline std::vector<RE::BSScript::ObjectTypeInfo::NamedStateInfo::Func> StateFunctions(
         const RE::BSScript::ObjectTypeInfo& owner, std::uint32_t index) {
         // The pinned CommonLib declares the offset as a 9-bit field. The packed

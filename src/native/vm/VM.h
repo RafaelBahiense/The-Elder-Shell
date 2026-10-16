@@ -3,7 +3,7 @@
 #include "shell/Requests.h"
 #include <cstddef>
 
-namespace papyrus_console {
+namespace elder_shell {
     inline constexpr std::size_t EvaluationTypeWarningThreshold = 128;
     inline constexpr std::size_t InputVariableWarningThreshold = 32;
     inline constexpr std::size_t ImportedTypeWarningThreshold = 256;

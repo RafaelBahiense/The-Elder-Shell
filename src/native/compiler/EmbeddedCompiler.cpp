@@ -9,7 +9,7 @@
 #include <memory>
 #include <mutex>
 
-namespace papyrus_console {
+namespace elder_shell {
     namespace {
         using Node = caprica::papyrus::PapyrusCompilationNode;
         using Context = caprica::papyrus::PapyrusCompilationContext;
@@ -103,7 +103,7 @@ namespace papyrus_console {
     }
 
     std::string EmbeddedCompiler::Identity() const {
-        return "Caprica;embedded;" PAPYRUS_CONSOLE_CAPRICA_PROFILE;
+        return "Caprica;embedded;" EMBEDDED_CAPRICA_PROFILE;
     }
 
     CompilationReport EmbeddedCompiler::Compile(const CompilationRequest& request) const {

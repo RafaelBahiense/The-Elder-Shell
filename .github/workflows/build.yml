@@ -1,0 +1,38 @@
+name: Build and verify
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup
+      - name: Check formatting
+        run: ./lint.ps1
+      - name: Test
+        run: ./build.ps1 -Target Test
+      - name: Analyze native code
+        run: ./build.ps1 -Target Analyze
+      - name: Build
+        run: ./build.ps1
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diagnostics
+          path: build/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore

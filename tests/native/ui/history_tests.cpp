@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include "ui/History.h"
 
-using namespace papyrus_console;
+using namespace elder_shell;
 
 namespace {
     TEST_CASE("Command history restores the draft at the end and stops at its boundaries") {

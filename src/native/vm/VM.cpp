@@ -8,7 +8,7 @@
 #include <mutex>
 #include <thread>
 
-namespace papyrus_console {
+namespace elder_shell {
     namespace {
         using VM = RE::BSScript::Internal::VirtualMachine;
         using Object = RE::BSTSmartPointer<RE::BSScript::Object>;
@@ -275,7 +275,7 @@ namespace papyrus_console {
                 }
                 ResolveStatement(statement, imports.environment);
                 auto input = std::move(imports.compiler);
-                input.source = EvaluationSource(statement, parameters, "PapyrusConsole_Evaluation");
+                input.source = EvaluationSource(statement, parameters, mod::info::EvaluationMarker);
                 std::string completionLabel =
                     statement.resultType.empty() ? statement.mutation ? "Statement completed" : "No return value" : "";
                 {

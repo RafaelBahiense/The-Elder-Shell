@@ -2,11 +2,12 @@
 #include "vm/VM.h"
 #include "History.h"
 #include "runtime/Compatibility.h"
+#include "ModInfo.h"
 
 #include <SKSEMCP/SKSEMenuFramework.hpp>
 #include <array>
 
-namespace papyrus_console {
+namespace elder_shell {
     namespace {
         std::array<char, 4097> input{};
         std::string error;
@@ -153,10 +154,10 @@ namespace papyrus_console {
 
     void RegisterMenu() {
         if (!SKSEMenuFramework::IsInstalled()) {
-            SKSE::log::error("Papyrus Console requires SKSE Menu Framework for its interface");
+            SKSE::log::error("{} requires SKSE Menu Framework for its interface", mod::info::DisplayName);
             return;
         }
-        SKSEMenuFramework::SetSection("Papyrus Console");
+        SKSEMenuFramework::SetSection(mod::info::DisplayName);
         SKSEMenuFramework::AddSectionItem("Console", Render);
         SKSEMenuFramework::AddSectionItem("Instances", RenderInstances);
     }

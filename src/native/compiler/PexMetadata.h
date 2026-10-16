@@ -6,7 +6,7 @@
 #include <string>
 #include <string_view>
 
-namespace papyrus_console {
+namespace elder_shell {
     // Skyrim PEX 3.2 is big-endian. Preserve bytecode and debug line mappings;
     // normalize only build metadata so recompilation cannot change a saved type.
     // Layout: github.com/Orvid/Caprica/blob/v0.3.0/Caprica/pex/PexFile.cpp

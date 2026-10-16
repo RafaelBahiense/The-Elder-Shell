@@ -6,7 +6,7 @@
 #include "shell/Variables.h"
 #include "shell/EvaluationGate.h"
 
-using namespace papyrus_console;
+using namespace elder_shell;
 
 namespace {
     Command RequireCommand(std::string_view text) {

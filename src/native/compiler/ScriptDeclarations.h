@@ -2,7 +2,7 @@
 
 #include "shell/Evaluation.h"
 
-namespace papyrus_console {
+namespace elder_shell {
     struct FunctionDeclaration {
         std::string name, result;
         std::vector<SourceParameter> parameters;

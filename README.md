@@ -1,4 +1,4 @@
-# Papyrus Console
+# The Elder Shell
 
 Run Papyrus statements inside Skyrim through an SKSE Menu Framework console.
 Inspect live scripts, call functions, and read or change properties without
@@ -17,7 +17,7 @@ guess.
 
 ## Use it
 
-Install the mod, then open **SKSE Menu Framework → Papyrus Console → Console**.
+Install the mod, then open **SKSE Menu Framework → The Elder Shell → Console**.
 Enter one statement at a time:
 
 ```papyrus

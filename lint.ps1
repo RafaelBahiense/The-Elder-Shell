@@ -24,7 +24,7 @@ $files = foreach ($directory in @('src/native', 'tests/native')) {
     Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot $directory) -Recurse -File |
         Where-Object Extension -In @('.cpp', '.h', '.hpp') | ForEach-Object FullName
 }
-$flags = if ($Fix) { @('-i') } else { @('--dry-run', '--Werror') }
+$flags = @(if ($Fix) { '-i' } else { '--dry-run'; '--Werror' })
 & $ClangFormat '--style=file' '--fallback-style=none' @flags @files
 if ($LASTEXITCODE -ne 0) { throw 'C++ formatting failed. Run ./lint.ps1 -Fix and review the changes.' }
 if ($NativeAnalysis) {

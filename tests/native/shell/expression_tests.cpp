@@ -3,7 +3,7 @@
 #include "shell/ExpressionTypes.h"
 #include "shell/Variables.h"
 
-using namespace papyrus_console;
+using namespace elder_shell;
 
 namespace {
     EvaluationEnvironment Environment() {

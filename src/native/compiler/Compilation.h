@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-namespace papyrus_console {
+namespace elder_shell {
     struct CompilationRequest {
         std::filesystem::path source, flags, output;
         std::vector<std::filesystem::path> imports;

@@ -1,7 +1,7 @@
 {
   "name": "caprica",
   "version": "0.3.0",
-  "description": "Caprica compiler library with Papyrus Console session support",
+  "description": "Caprica compiler library with Skyrim Papyrus session support",
   "homepage": "https://github.com/Orvid/Caprica",
   "license": "MIT",
   "supports": "windows & static & !uwp",

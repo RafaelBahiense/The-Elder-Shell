@@ -2,7 +2,7 @@
 #include "vm/StateFunctionLayout.h"
 #include <array>
 
-using namespace papyrus_console;
+using namespace elder_shell;
 
 namespace {
     TEST_CASE("Named-state offsets preserve high bits independently of function count") {

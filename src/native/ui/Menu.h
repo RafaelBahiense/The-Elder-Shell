@@ -1,5 +1,5 @@
 #pragma once
 
-namespace papyrus_console {
+namespace elder_shell {
     void RegisterMenu();
 }

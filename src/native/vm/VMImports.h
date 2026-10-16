@@ -9,7 +9,7 @@ namespace RE::BSScript::Internal {
     class VirtualMachine;
 }
 
-namespace papyrus_console {
+namespace elder_shell {
     std::optional<RE::BSScript::TypeInfo> FindValueType(RE::BSScript::Internal::VirtualMachine* vm,
                                                         std::string_view name);
 

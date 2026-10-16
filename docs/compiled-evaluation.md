@@ -1,73 +1,62 @@
 # How evaluation works
 
-Input becomes a temporary Papyrus script. Embedded Caprica compiles it to PEX
-(Skyrim's script bytecode). Skyrim's VM executes it.
-
-```text
-Statement → type snapshot → generated source → Caprica → PEX → VM → result
-```
+Embedded Caprica compiles each statement to PEX (Papyrus bytecode). Skyrim's VM
+executes it and returns the result through a callback.
 
 ## Pipeline
 
-1. Parse one statement. Identify its result type and referenced variables.
-2. Snapshot linked VM signatures on the game thread. Do not execute type probes.
-3. Generate signature-only imports. Original PSC source is unnecessary.
+1. Parse the statement; identify its result type and session variables.
+2. Snapshot linked VM signatures on the game thread, without executing type probes.
+3. Generate signature-only imports; original PSC source is unnecessary.
 4. Wrap the statement in a typed global `Run` function.
 5. Compile on a worker, or reuse verified cached bytecode.
-6. Dispatch `Run` through Skyrim's `DispatchStaticCall` on the game thread.
-7. Store the callback result. Display it in the console.
+6. Dispatch `Run` through `DispatchStaticCall` on the game thread.
+7. Store the callback result and display it.
 
 For `var level = player.GetLevel()`, the generated function is equivalent to:
 
 ```papyrus
-Scriptname PapyrusConsole_Eval_<hash> Hidden
+Scriptname TheElderShell_Eval_<hash> Hidden
 
 Int Function Run(Actor player) Global
     Return player.GetLevel()
 EndFunction
 ```
 
-The script name above is schematic. The real name contains a hexadecimal hash.
-`player` arrives as a typed parameter. The native session stores the returned
-value as `level`. No quest or attached wrapper instance is created.
+`<hash>` represents a hexadecimal hash. `player` is a typed parameter; the native
+session stores the result as `level`. No quest or attached wrapper is created.
 
 ## Types and imports
 
-- `var` infers a fixed type from signatures and literals.
-- Caprica validates Papyrus semantics and argument types.
+- `var` infers a fixed type from signatures and literals; Caprica checks semantics.
 - Properties and arrays execute as ordinary Papyrus instructions.
-- Imports describe signatures; their bodies do not replace installed scripts.
-- Parameter defaults are unavailable. Every argument must be supplied.
-- Directly used script types require linked VM metadata.
-- Unavailable indirect dependencies receive type-only declarations.
-- Members with lost property or parameter types are omitted.
+- Imports supply signatures, without replacing installed script bodies.
+- Parameter defaults are unavailable; every argument must be supplied.
+- Directly used types require linked VM metadata. Unavailable indirect dependencies
+  receive type-only declarations; members with missing signature types are omitted.
 
-## Cache and lifetime
+## Cache
 
-- SHA256 covers source, imports, compiler identity and profile.
-- Cached PEX must match its recorded digest.
-- Compiler timestamps, paths and machine identity are normalized.
-- Cache: `SKSE/Plugins/PapyrusConsole/cache/`.
-- Retain 30 compiler-cache folders. Evict least recently used entries on evaluation.
-- Loader input: `Scripts/PapyrusConsole_Eval_<hash>.pex`.
-- Loader scripts are immutable and never evicted. Saved stacks may still need them.
+SHA256 covers source, imports, compiler identity and profile. Cached PEX must
+match its recorded digest. Compiler timestamps, paths and machine identity are
+normalized.
+
+Compiler files live under `SKSE/Plugins/TheElderShell/cache/`. Loader scripts live
+under `Scripts/TheElderShell_Eval_<hash>.pex`; they remain immutable and are never
+evicted because saved stacks may need them. See [usage](usage.md#execution-and-output)
+for cache rotation and usage counters.
 
 ## Execution contract
 
-- Tested runtime: Skyrim 1.6.1170. Other versions receive a warning, not a version block.
-- One compiled evaluation runs at a time.
-- Completion requires a VM callback. Acceptance is insufficient.
-- Arguments capture submitted values; objects and arrays remain live references.
-- Ticket ownership rejects stale assignment callbacks.
-- Loads clear console variables and abandon requests. Effects are not undone.
-- Requests are never replayed automatically.
-- A lost completion callback requires restarting Skyrim before further evaluation.
-- UI counts distinct evaluation types loaded since startup. Reuse adds no type.
-- At 128 types, show a warning. Further evaluations are allowed; memory is not measured.
-- Restart Skyrim to reset the type counter. Save loads do not reset it.
-- UI shows input-variable and imported-type counts for the last prepared evaluation.
-- At 32 inputs or 256 imports, show advisory warnings. Neither count blocks evaluation.
-- Compilation deadline: 30 seconds, cooperative. It is not a VM execution timeout.
+One evaluation runs at a time. Only its VM callback confirms completion;
+acceptance does not. Arguments capture submitted values, while objects and arrays
+remain live references.
+
+Loads clear variables and abandon requests without undoing effects. Requests are
+never replayed. A lost callback requires restarting Skyrim before further evaluation.
+See [VM ownership](vm-integration.md#ownership) for stale-callback handling.
+
+The [compiler deadline](embedded-compiler.md#sessions) does not limit VM execution.
 
 Further detail: [compiler embedding](embedded-compiler.md),
 [VM metadata](vm-integration.md), [source layout](architecture.md).

@@ -10,7 +10,7 @@
 #include "compiler/EmbeddedCompiler.h"
 #include <Psapi.h>
 
-using namespace papyrus_console;
+using namespace elder_shell;
 
 namespace {
     std::filesystem::path EmbeddedWorkspace() {
@@ -90,7 +90,7 @@ namespace {
 
     TEST_CASE("Verified cache hits do not invoke the compiler again") {
         const auto cache = EmbeddedWorkspace() / "cache";
-        CompilerInput input{EvaluationSource(Statement("Int result = 123"), {}, "PapyrusConsole_Evaluation"), {}};
+        CompilerInput input{EvaluationSource(Statement("Int result = 123"), {}, mod::info::EvaluationMarker), {}};
         const auto initial = CompileEvaluation(input, EmbeddedCompiler(), cache);
         REQUIRE(initial.error.empty());
         CHECK(CompileEvaluation(input, EmbeddedCompiler(std::chrono::milliseconds(0)), cache).error.empty());
@@ -103,7 +103,7 @@ namespace {
 
     TEST_CASE("Compiler cache retains thirty entries and refreshes cache hits") {
         const auto cache = EmbeddedWorkspace() / ("cache-limit-" + std::to_string(GetTickCount64()));
-        CompilerInput input{EvaluationSource(Statement("Int result = 123"), {}, "PapyrusConsole_Evaluation"), {}};
+        CompilerInput input{EvaluationSource(Statement("Int result = 123"), {}, mod::info::EvaluationMarker), {}};
         const auto initial = CompileEvaluation(input, EmbeddedCompiler(), cache);
         REQUIRE(initial.error.empty());
 
@@ -131,7 +131,7 @@ namespace {
         const auto workspace = EmbeddedWorkspace() / ("cache-failure-" + std::to_string(GetTickCount64()));
         const auto cache = workspace / "cache";
         const auto scripts = workspace / "Scripts";
-        CompilerInput input{EvaluationSource(Statement("Int result = 456"), {}, "PapyrusConsole_Evaluation"), {}};
+        CompilerInput input{EvaluationSource(Statement("Int result = 456"), {}, mod::info::EvaluationMarker), {}};
         const auto initial = CompileEvaluation(input, EmbeddedCompiler(), cache);
         REQUIRE(initial.error.empty());
         CopyEvaluationBytecode(initial, scripts);
@@ -147,7 +147,7 @@ namespace {
             std::filesystem::last_write_time(entry, oldest + std::chrono::seconds(i));
         }
 
-        CompilerInput invalid{"Scriptname PapyrusConsole_Evaluation\ninvalid syntax", {}};
+        CompilerInput invalid{std::string("Scriptname ") + mod::info::EvaluationMarker + "\ninvalid syntax", {}};
         const auto failed = CompileEvaluation(invalid, EmbeddedCompiler(), cache);
         CHECK_FALSE(failed.error.empty());
         CHECK_FALSE(std::filesystem::exists(initial.bytecode));
@@ -175,7 +175,7 @@ namespace {
             if (statement.reassignment)
                 statement.resultType = "Int";
             ResolveStatement(statement, environment);
-            CompilerInput input{EvaluationSource(statement, environment.variables, "PapyrusConsole_Evaluation"), {}};
+            CompilerInput input{EvaluationSource(statement, environment.variables, mod::info::EvaluationMarker), {}};
             for (const auto& script : environment.scripts)
                 input.declarations.emplace_back(script.name, DeclarationSource(script));
             const auto compiled = CompileEvaluation(input);
@@ -198,7 +198,7 @@ namespace {
                 expression += name;
             }
             input.source =
-                EvaluationSource(Statement("Int result = " + expression), parameters, "PapyrusConsole_Evaluation");
+                EvaluationSource(Statement("Int result = " + expression), parameters, mod::info::EvaluationMarker);
         }
 
         SUBCASE("Two hundred fifty-seven inherited script types") {
@@ -211,7 +211,7 @@ namespace {
             }
             parameters.push_back({"FixtureType256", "value"});
             input.source =
-                EvaluationSource(Statement("FixtureType256 result = value"), parameters, "PapyrusConsole_Evaluation");
+                EvaluationSource(Statement("FixtureType256 result = value"), parameters, mod::info::EvaluationMarker);
         }
 
         const auto result = CompileEvaluation(input);
@@ -233,12 +233,12 @@ namespace {
 
     TEST_CASE("Caprica compiles arithmetic and reuses immutable bytecode") {
         CompilerInput input{EvaluationSource(Statement("Float answer = amount * 2.0"), {{"Float", "amount"}},
-                                             "PapyrusConsole_Evaluation"),
+                                             mod::info::EvaluationMarker),
                             {}};
         const auto result = CompileEvaluation(input);
         INFO(result.error);
         REQUIRE(result.error.empty());
-        CHECK(result.script.starts_with("PapyrusConsole_Eval_"));
+        CHECK(result.script.starts_with(mod::info::EvaluationPrefix));
         CHECK(std::filesystem::file_size(result.bytecode) > 40);
         const auto timestamp = std::filesystem::last_write_time(result.bytecode);
         const auto repeated = CompileEvaluation(input);
@@ -255,7 +255,7 @@ namespace {
                                     {{"GetRecord", "FixtureRecord", {}, false}},
                                     {{"record", "FixtureRecord", true, false}}};
         return {
-            EvaluationSource(Statement(statement), {{"FixtureContainer", "container"}}, "PapyrusConsole_Evaluation"),
+            EvaluationSource(Statement(statement), {{"FixtureContainer", "container"}}, mod::info::EvaluationMarker),
             {{record.name, DeclarationSource(record)}, {container.name, DeclarationSource(container)}}};
     }
 
@@ -294,7 +294,7 @@ namespace {
                 statement.resultType = "Int";
             else
                 statement.resultType = ExpressionTypes(statement.expression, environment).Result();
-            CompilerInput input{EvaluationSource(statement, environment.variables, "PapyrusConsole_Evaluation"), {}};
+            CompilerInput input{EvaluationSource(statement, environment.variables, mod::info::EvaluationMarker), {}};
             for (const auto& script : environment.scripts)
                 input.declarations.emplace_back(script.name, DeclarationSource(script));
             // Inferring a result must never generate an execution probe or
@@ -325,13 +325,13 @@ namespace {
         for (const auto& declaration : declarations)
             input.declarations.emplace_back(declaration.name, DeclarationSource(declaration));
         input.source =
-            EvaluationSource(Statement("Int level = Game.GetPlayer().GetLevel()"), {}, "PapyrusConsole_Evaluation");
+            EvaluationSource(Statement("Int level = Game.GetPlayer().GetLevel()"), {}, mod::info::EvaluationMarker);
         const auto chain = CompileEvaluation(input);
         INFO(chain.error);
         CHECK(chain.error.empty());
         input.source = EvaluationSource(
             Statement("ExampleController controller = Game.GetFormFromFile(1, \"Example.esp\") as ExampleController"),
-            {}, "PapyrusConsole_Evaluation");
+            {}, mod::info::EvaluationMarker);
         const auto cast = CompileEvaluation(input);
         INFO(cast.error);
         CHECK(cast.error.empty());
@@ -342,7 +342,7 @@ namespace {
         const ScriptDeclaration container{"Actor", "Form", {}, {}};
         const ScriptDeclaration game{"Game", {}, {{"GetFormEx", "Form", {{"Int", "formId"}}, true}}, {}};
         CompilerInput input{EvaluationSource(Statement("Actor npc = Game.GetFormEx(0xFF000123) as Actor"), {},
-                                             "PapyrusConsole_Evaluation"),
+                                             mod::info::EvaluationMarker),
                             {{form.name, DeclarationSource(form)},
                              {container.name, DeclarationSource(container)},
                              {game.name, DeclarationSource(game)}}};
@@ -360,14 +360,14 @@ namespace {
                                            {{"OptionalLibrary", "UnavailableDependency", true, false}}};
         CompilerInput input{
             EvaluationSource(Statement("Int level = controller.GetLevel()"), {{"OptionalController", "controller"}},
-                             "PapyrusConsole_Evaluation"),
+                             mod::info::EvaluationMarker),
             {{controller.name, DeclarationSource(controller)}, {unavailable.name, DeclarationSource(unavailable)}}};
         const auto unrelated = CompileEvaluation(input);
         INFO(unrelated.error);
         CHECK(unrelated.error.empty());
 
         input.source = EvaluationSource(Statement("Int level = controller.OptionalLibrary.GetLevel()"),
-                                        {{"OptionalController", "controller"}}, "PapyrusConsole_Evaluation");
+                                        {{"OptionalController", "controller"}}, mod::info::EvaluationMarker);
         const auto missingMember = CompileEvaluation(input);
         CHECK_FALSE(missingMember.error.empty());
         CHECK(missingMember.bytecode.empty());
@@ -389,13 +389,13 @@ namespace {
         CHECK(source.find("MissingReturn") == std::string::npos);
 
         CompilerInput input{EvaluationSource(Statement("Int level = controller.GetLevel()"),
-                                             {{controller.name, "controller"}}, "PapyrusConsole_Evaluation"),
+                                             {{controller.name, "controller"}}, mod::info::EvaluationMarker),
                             {{controller.name, source}}};
         const auto valid = CompileEvaluation(input);
         INFO(valid.error);
         CHECK(valid.error.empty());
         input.source = EvaluationSource(Statement("String library = controller.MissingLibrary"),
-                                        {{controller.name, "controller"}}, "PapyrusConsole_Evaluation");
+                                        {{controller.name, "controller"}}, mod::info::EvaluationMarker);
         const auto missing = CompileEvaluation(input);
         CHECK_FALSE(missing.error.empty());
         CHECK(missing.bytecode.empty());
@@ -419,7 +419,7 @@ namespace {
     }
 
     TEST_CASE("Corrupt cached bytecode is recompiled instead of executed") {
-        CompilerInput input{EvaluationSource(Statement("Int restored = 123"), {}, "PapyrusConsole_Evaluation"), {}};
+        CompilerInput input{EvaluationSource(Statement("Int restored = 123"), {}, mod::info::EvaluationMarker), {}};
         const auto first = CompileEvaluation(input);
         REQUIRE(first.error.empty());
         const auto original = Bytecode(first.bytecode);

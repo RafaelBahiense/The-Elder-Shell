@@ -2,7 +2,7 @@
 #include "compiler/ScriptDeclarations.h"
 #include "StateFunctions.h"
 
-namespace papyrus_console {
+namespace elder_shell {
     using VM = RE::BSScript::Internal::VirtualMachine;
     using Type = RE::BSTSmartPointer<RE::BSScript::ObjectTypeInfo>;
 

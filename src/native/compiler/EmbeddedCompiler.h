@@ -3,7 +3,7 @@
 #include "Compilation.h"
 #include <chrono>
 
-namespace papyrus_console {
+namespace elder_shell {
     class EmbeddedCompiler final {
     public:
         explicit EmbeddedCompiler(std::chrono::milliseconds timeLimit = std::chrono::seconds(30))

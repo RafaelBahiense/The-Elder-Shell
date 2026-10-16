@@ -1,12 +1,13 @@
 #include "ui/Menu.h"
 #include "vm/VM.h"
 #include "Compatibility.h"
-#include "Version.h"
+#include "ModInfo.h"
 
 #include <spdlog/sinks/basic_file_sink.h>
 
-SKSEPluginInfo(.Version = papyrus_console::PluginVersion, .Name = "PapyrusConsole"sv, .Author = "Rafael Bahiense"sv,
-               .SupportEmail = ""sv, .StructCompatibility = SKSE::StructCompatibility::Independent,
+SKSEPluginInfo(.Version = REL::Version{mod::info::VersionMajor, mod::info::VersionMinor, mod::info::VersionPatch, 0},
+               .Name = mod::info::BinaryName, .Author = mod::info::Author, .SupportEmail = ""sv,
+               .StructCompatibility = SKSE::StructCompatibility::Independent,
                .RuntimeCompatibility = SKSE::VersionIndependence::AddressLibrary,
                .MinimumSKSEVersion = REL::Version{0, 0, 0, 0})
 
@@ -14,16 +15,16 @@ SKSEPluginInfo(.Version = papyrus_console::PluginVersion, .Name = "PapyrusConsol
     void OnMessage(SKSE::MessagingInterface::Message * message) {
         switch (message->type) {
             case SKSE::MessagingInterface::kDataLoaded:
-                papyrus_console::RegisterMenu();
+                elder_shell::RegisterMenu();
                 break;
             case SKSE::MessagingInterface::kPreLoadGame:
-                papyrus_console::SessionChanged(false);
+                elder_shell::SessionChanged(false);
                 break;
             case SKSE::MessagingInterface::kPostLoadGame:
-                papyrus_console::SessionChanged(message->data != nullptr);
+                elder_shell::SessionChanged(message->data != nullptr);
                 break;
             case SKSE::MessagingInterface::kNewGame:
-                papyrus_console::SessionChanged(true);
+                elder_shell::SessionChanged(true);
                 break;
             default:
                 break;
@@ -35,19 +36,19 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     SKSE::Init(skse);
     auto directory = SKSE::log::log_directory();
     if (directory) {
-        *directory /= "PapyrusConsole.log";
+        *directory /= mod::info::LogFile;
         auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(directory->string(), true);
-        auto logger = std::make_shared<spdlog::logger>("PapyrusConsole", std::move(sink));
+        auto logger = std::make_shared<spdlog::logger>(mod::info::BinaryName, std::move(sink));
         logger->set_level(spdlog::level::info);
         logger->flush_on(spdlog::level::info);
         spdlog::set_default_logger(std::move(logger));
     }
-    if (!papyrus_console::IsTestedRuntime())
-        SKSE::log::warn("{}", papyrus_console::UntestedRuntimeWarning);
+    if (!elder_shell::IsTestedRuntime())
+        SKSE::log::warn("{}", elder_shell::UntestedRuntimeWarning);
 
     auto* messaging = SKSE::GetMessagingInterface();
     if (!messaging || !messaging->RegisterListener(OnMessage))
         return false;
-    SKSE::log::info("Papyrus Console loaded");
+    SKSE::log::info("{} loaded", mod::info::DisplayName);
     return true;
 }

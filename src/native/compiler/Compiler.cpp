@@ -1,6 +1,7 @@
 #include "Compiler.h"
 #include "shell/Syntax.h"
 #include "PexMetadata.h"
+#include "ModInfo.h"
 
 #include <Windows.h>
 #include <bcrypt.h>
@@ -9,7 +10,7 @@
 #include <fstream>
 #include <stdexcept>
 
-namespace papyrus_console {
+namespace elder_shell {
     namespace {
         constexpr std::size_t CacheEntryLimit = 30;
 
@@ -135,7 +136,7 @@ namespace papyrus_console {
 
     CompilerResult CompileEvaluation(const CompilerInput& input) {
         try {
-            const auto tools = PluginDirectory() / "PapyrusConsole";
+            const auto tools = PluginDirectory() / mod::info::BinaryName;
             const EmbeddedCompiler compiler;
             return CompileEvaluation(input, compiler, tools / "cache");
         } catch (const std::exception& error) {
@@ -150,7 +151,7 @@ namespace papyrus_console {
             for (const auto& [name, declaration] : input.declarations)
                 identity += "\n" + name + "\n" + declaration;
             const auto digest = Digest(identity);
-            const auto script = "PapyrusConsole_Eval_" + digest;
+            const auto script = mod::info::EvaluationPrefix + digest;
             // Keep compiler paths short without changing Windows path settings.
             const auto workspace = cacheDirectory / digest.substr(0, 16);
             if (std::filesystem::exists(workspace))
@@ -158,10 +159,10 @@ namespace papyrus_console {
             std::filesystem::create_directories(workspace / "imports");
             TrimCache(cacheDirectory, workspace);
             auto source = input.source;
-            const auto marker = source.find("PapyrusConsole_Evaluation");
+            const auto marker = source.find(mod::info::EvaluationMarker);
             if (marker == std::string::npos)
                 throw std::runtime_error("Missing evaluation script marker");
-            source.replace(marker, std::string_view("PapyrusConsole_Evaluation").size(), script);
+            source.replace(marker, std::string_view(mod::info::EvaluationMarker).size(), script);
             const auto sourcePath = workspace / (script + ".psc");
             const auto bytecode = workspace / (script + ".pex");
             const auto receipt = workspace / "bytecode.sha256";
@@ -199,7 +200,8 @@ namespace papyrus_console {
     }
 
     void CopyEvaluationBytecode(const CompilerResult& result, const std::filesystem::path& scripts) {
-        if (!result.error.empty() || !result.script.starts_with("PapyrusConsole_Eval_") || !Identifier(result.script))
+        if (!result.error.empty() || !result.script.starts_with(mod::info::EvaluationPrefix) ||
+            !Identifier(result.script))
             throw std::runtime_error("Invalid compiled evaluation result");
         const auto bytes = Read(result.bytecode);
         if (!SkyrimBytecode(bytes))

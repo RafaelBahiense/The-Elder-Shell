@@ -3,7 +3,7 @@
 #include "ExpressionTokens.h"
 #include "compiler/ScriptDeclarations.h"
 
-namespace papyrus_console {
+namespace elder_shell {
     struct ImportIssue {
         std::string script, member, reason;
     };

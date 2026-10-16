@@ -8,7 +8,7 @@
 #include <string_view>
 #include <utility>
 
-namespace papyrus_console {
+namespace elder_shell {
     template <class Value>
     class Variables {
     public:

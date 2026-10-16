@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace papyrus_console {
+namespace elder_shell {
     enum class Status { Queued, Compiling, Submitted, Completed, Rejected, Abandoned };
 
     struct Ticket {

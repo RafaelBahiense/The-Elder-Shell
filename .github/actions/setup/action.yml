@@ -1,0 +1,45 @@
+name: Prepare build dependencies
+description: Restore caches and configure pinned native dependencies.
+runs:
+  using: composite
+  steps:
+    - name: Identify toolchain
+      id: toolchain
+      shell: pwsh
+      run: |
+        $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+        $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationVersion
+        $identity = "$env:ImageVersion|$vs|$env:GITHUB_WORKSPACE"
+        $key = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($identity)))
+        "key=$key" >> $env:GITHUB_OUTPUT
+
+    - name: Cache dependency sources
+      uses: actions/cache@v4
+      with:
+        path: |
+          .tools/CommonLibSSE-NG
+          .tools/commonlib.tar.gz
+          .tools/downloads
+        key: windows-sources-v1-${{ hashFiles('setup.ps1', 'vcpkg.json', 'cmake/ports/**') }}
+
+    - name: Cache dependency binaries
+      uses: actions/cache@v4
+      with:
+        path: .tools/vcpkg-cache
+        key: windows-vcpkg-v1-${{ steps.toolchain.outputs.key }}-${{ hashFiles('setup.ps1', 'vcpkg.json', 'cmake/ports/**') }}
+
+    - name: Cache CommonLib objects and installed dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          .tools/vcpkg_installed
+          build/dependencies/CommonLibSSE-NG
+          build/.ninja_deps
+          build/.ninja_log
+        # Project objects and DLLs are excluded. They rebuild from this checkout.
+        key: windows-native-v1-${{ steps.toolchain.outputs.key }}-${{ hashFiles('setup.ps1', 'build.ps1', 'CMakeLists.txt', 'cmake/**', 'mod.json', 'vcpkg.json') }}
+
+    - name: Setup
+      shell: pwsh
+      run: ./setup.ps1
+

@@ -5,7 +5,7 @@
 #include <string_view>
 #include <vector>
 
-namespace papyrus_console {
+namespace elder_shell {
     class History {
     public:
         void Add(std::string_view command) {

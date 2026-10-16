@@ -2,7 +2,7 @@
 
 #include "Evaluation.h"
 
-namespace papyrus_console {
+namespace elder_shell {
     enum class Operation { Methods, Variables, Unset, ClearVariables, Evaluate };
 
     struct Command {

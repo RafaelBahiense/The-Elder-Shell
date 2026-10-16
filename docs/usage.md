@@ -1,6 +1,6 @@
-# Using Papyrus Console
+# Using The Elder Shell
 
-Open **SKSE Menu Framework → Papyrus Console → Console**. Enter one statement
+Open **SKSE Menu Framework → The Elder Shell → Console**. Enter one statement
 at a time and wait for it to complete before using its result.
 
 ## Statements and values
@@ -46,12 +46,11 @@ methods Actor
 
 Up to 64 typed variables are retained until a save load or new game. Pending
 and failed assignments cannot be used. Object types survive `None` results;
-arrays retain live VM references. Removing a variable does not cancel its
-command, and late callbacks cannot replace newer values.
+arrays retain live VM references. Removing a variable does not cancel its command.
 
 ## Instances
 
-Open **Papyrus Console → Instances**. Search by form/reference ID, script name,
+Open **The Elder Shell → Instances**. Search by form/reference ID, script name,
 or both. Searches run on request, examine at most 100,000 attached entries and
 return up to 128 results. Derived scripts match parent filters.
 
@@ -77,16 +76,3 @@ Generated scripts under `Scripts/` are retained for saves.
 
 Use **Up/Down** for history. Output supports mouse selection and **Ctrl+C**;
 **Ctrl+A** selects the transcript when it has focus.
-
-## Developer checks
-
-```powershell
-./build.ps1 -Target Test
-./build.ps1 -Target Analyze
-```
-
-Tests use synthetic inputs; VM scheduling and save behavior require in-game
-validation. Setup installs pinned dependencies into ignored `.tools/`, without
-changing system settings. Rerun it after dependency or Caprica port changes.
-Dependencies can be reused through `-CommonLib`, `-Vcpkg` and
-`-InstalledDependencies`.
