@@ -1,7 +1,8 @@
 # Using The Elder Shell
 
-Open **SKSE Menu Framework → The Elder Shell → Console**. Enter one statement
-at a time and wait for it to complete before using its result.
+Open **SKSE Menu Framework → The Elder Shell → Console**. Enter statements at
+the bottom `>` prompt. Wait for completion before using a result.
+Expand **Help** for selectable syntax examples and shortcuts.
 
 ## Statements and values
 

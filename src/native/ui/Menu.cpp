@@ -5,6 +5,7 @@
 #include "ModInfo.h"
 
 #include <SKSEMCP/SKSEMenuFramework.hpp>
+#include <algorithm>
 #include <array>
 
 namespace elder_shell {
@@ -55,6 +56,8 @@ namespace elder_shell {
         void Run() {
             history.Add(input.data());
             error = Submit(input.data());
+            if (error.empty())
+                input.fill('\0');
             focusCommand = true;
         }
 
@@ -80,9 +83,9 @@ namespace elder_shell {
             return 0;
         }
 
-        void RenderOutput() {
+        void RenderOutput(const std::vector<Entry>& entries) {
             std::string text;
-            for (const auto& entry : Snapshot()) {
+            for (const auto& entry : entries) {
                 text += std::format("#{} - {}\n> {}\n{}\n\n", entry.ticket.id, StatusName(entry.status), entry.command,
                                     entry.result);
             }
@@ -94,61 +97,126 @@ namespace elder_shell {
             }
             ImGuiMCP::ImVec2 available;
             ImGuiMCP::GetContentRegionAvail(&available);
+            available.y = std::max(
+                1.0f, available.y - ImGuiMCP::GetFrameHeightWithSpacing() - ImGuiMCP::GetStyle()->ItemSpacing.y);
             ImGuiMCP::InputTextMultiline("##Output", output.data(), output.size(), available,
                                          ImGuiMCP::ImGuiInputTextFlags_ReadOnly, nullptr, nullptr);
+        }
+
+        void RenderUsage() {
+            const auto usage = EvaluationUsageSnapshot();
+            ImGuiMCP::Text("Loaded types: %zu | Last evaluation: %zu inputs, %zu imports", usage.loadedTypes,
+                           usage.inputVariables, usage.importedTypes);
+            if (usage.loadedTypes >= EvaluationTypeWarningThreshold)
+                ImGuiMCP::TextWrapped(
+                    "Many evaluation types are loaded. Evaluations remain available. Retained VM memory is not "
+                    "measured; restart Skyrim to release loaded types.");
+            if (usage.inputVariables >= InputVariableWarningThreshold)
+                ImGuiMCP::TextWrapped("Many input variables. This is advisory; evaluation is not blocked.");
+            if (usage.importedTypes >= ImportedTypeWarningThreshold)
+                ImGuiMCP::TextWrapped("Large import graph. Compilation may take longer; evaluation is not blocked.");
+        }
+
+        void RenderHelp() {
+            if (!ImGuiMCP::CollapsingHeader("Help"))
+                return;
+
+            static char text[] =
+                "Enter one Papyrus statement. Expressions display their results.\n"
+                "Code blocks are unsupported. Commands can change game state.\n\n"
+                "Actor player = Game.GetPlayer()\n"
+                "Int level = player.GetLevel()\n"
+                "level = player.GetLevel()\n"
+                "player.GetLevel()\n"
+                "Debug.Notification(\"Hello from Papyrus\")\n"
+                "var player = Game.GetPlayer()\n"
+                "instance.Property = value\n\n"
+                "vars\nunset name\nclearvars\nmethods Actor\n\n"
+                "Use Game.GetFormEx(0x...) for runtime references.\n"
+                "Supply every argument, including optional ones.\n"
+                "Up/Down: history. Ctrl+C: copy selection. Ctrl+A: select focused text.\n"
+                "Variables clear on save load. Loaded types count since Skyrim started.\n"
+                "Input and import counts describe the last prepared evaluation.";
+            ImGuiMCP::ImVec2 available;
+            ImGuiMCP::GetContentRegionAvail(&available);
+            const auto lineHeight = ImGuiMCP::GetTextLineHeightWithSpacing();
+            const auto height = std::clamp(available.y * 0.4f, lineHeight * 3, lineHeight * 10);
+            ImGuiMCP::InputTextMultiline("##HelpText", text, sizeof(text), ImGuiMCP::ImVec2{0, height},
+                                         ImGuiMCP::ImGuiInputTextFlags_ReadOnly, nullptr, nullptr);
+        }
+
+        void RenderStatus(const std::vector<Entry>& entries) {
+            std::size_t pending = 0;
+            const Entry* latestPending = nullptr;
+            for (const auto& entry : entries) {
+                if (entry.status == Status::Queued || entry.status == Status::Compiling ||
+                    entry.status == Status::Submitted) {
+                    ++pending;
+                    latestPending = &entry;
+                }
+            }
+
+            if (latestPending) {
+                ImGuiMCP::Text("%zu pending | #%llu: %s", pending,
+                               static_cast<unsigned long long>(latestPending->ticket.id),
+                               StatusName(latestPending->status));
+                ImGuiMCP::TextWrapped(
+                    "If a call waits for the paused game, close this menu to let it proceed. "
+                    "Calls are never automatically repeated.");
+            } else if (!entries.empty()) {
+                ImGuiMCP::Text("#%llu: %s", static_cast<unsigned long long>(entries.back().ticket.id),
+                               StatusName(entries.back().status));
+            } else {
+                ImGuiMCP::TextUnformatted("Ready");
+            }
+        }
+
+        void RenderPrompt() {
+            ImGuiMCP::AlignTextToFramePadding();
+            ImGuiMCP::TextUnformatted(">");
+            ImGuiMCP::SameLine();
+            const auto& style = *ImGuiMCP::GetStyle();
+            ImGuiMCP::ImVec2 labelSize;
+            ImGuiMCP::CalcTextSize(&labelSize, "Execute", nullptr, false, -1.0f);
+            const auto buttonWidth = labelSize.x + style.FramePadding.x * 2;
+            const auto rightInset = std::max(style.WindowPadding.x, style.FramePadding.x);
+            ImGuiMCP::ImVec2 available;
+            ImGuiMCP::GetContentRegionAvail(&available);
+            ImGuiMCP::SetNextItemWidth(std::max(1.0f, available.x - buttonWidth - style.ItemSpacing.x - rightInset));
+            ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_FrameBg, ImGuiMCP::ImVec4{0, 0, 0, 0});
+            ImGuiMCP::PushStyleVar(ImGuiMCP::ImGuiStyleVar_FrameBorderSize, 0.0f);
+            if (focusCommand) {
+                ImGuiMCP::SetKeyboardFocusHere();
+                focusCommand = false;
+            }
+            const auto submitted = ImGuiMCP::InputText("##Command", input.data(), input.size(),
+                                                       ImGuiMCP::ImGuiInputTextFlags_EnterReturnsTrue |
+                                                           ImGuiMCP::ImGuiInputTextFlags_CallbackHistory |
+                                                           ImGuiMCP::ImGuiInputTextFlags_CallbackEdit,
+                                                       InputCallback);
+            ImGuiMCP::PopStyleVar();
+            ImGuiMCP::PopStyleColor();
+            ImGuiMCP::SameLine();
+            const auto clicked = ImGuiMCP::Button("Execute", ImGuiMCP::ImVec2{buttonWidth, 0});
+            if (submitted || clicked)
+                Run();
         }
 
         void __stdcall Render() {
             if (!IsTestedRuntime())
                 ImGuiMCP::TextWrapped("%s", UntestedRuntimeWarning.data());
 
-            ImGuiMCP::TextUnformatted("Papyrus VM function console");
-            const auto usage = EvaluationUsageSnapshot();
-            ImGuiMCP::Text("Distinct evaluation types loaded since Skyrim started: %zu", usage.loadedTypes);
-            if (usage.loadedTypes >= EvaluationTypeWarningThreshold)
-                ImGuiMCP::TextWrapped(
-                    "Many evaluation types are loaded. Evaluations remain available. Retained VM memory is not "
-                    "measured; restart Skyrim to release loaded types.");
-            ImGuiMCP::Text("Last prepared evaluation: %zu input variables, %zu imported types", usage.inputVariables,
-                           usage.importedTypes);
-            if (usage.inputVariables >= InputVariableWarningThreshold)
-                ImGuiMCP::TextWrapped("Many input variables. This is advisory; evaluation is not blocked.");
-            if (usage.importedTypes >= ImportedTypeWarningThreshold)
-                ImGuiMCP::TextWrapped("Large import graph. Compilation may take longer; evaluation is not blocked.");
-
-            ImGuiMCP::TextWrapped(
-                "Write a Papyrus declaration, reassignment, expression or function call. "
-                "Expression results are displayed automatically. Code blocks are unsupported.");
-            ImGuiMCP::TextUnformatted("Actor player = Game.GetPlayer()   |   Int level = player.GetLevel()");
-            ImGuiMCP::TextUnformatted("level = player.GetLevel()   |   player.GetLevel()");
-            ImGuiMCP::TextUnformatted("Debug.Notification(\"Hello from Papyrus\")");
-            ImGuiMCP::TextUnformatted("var player = Game.GetPlayer()   |   instance.Property = value");
-            ImGuiMCP::TextUnformatted("vars   |   unset name   |   clearvars   |   methods Actor");
-            ImGuiMCP::TextWrapped(
-                "Use Game.GetFormEx(0x...) for runtime references. Supply every function parameter, including optional "
-                "ones. Commands can change game state.");
-            if (focusCommand) {
-                ImGuiMCP::SetKeyboardFocusHere();
-                focusCommand = false;
-            }
-            if (ImGuiMCP::InputText("Command", input.data(), input.size(),
-                                    ImGuiMCP::ImGuiInputTextFlags_EnterReturnsTrue |
-                                        ImGuiMCP::ImGuiInputTextFlags_CallbackHistory |
-                                        ImGuiMCP::ImGuiInputTextFlags_CallbackEdit,
-                                    InputCallback))
-                Run();
-            if (ImGuiMCP::Button("Execute"))
-                Run();
-            ImGuiMCP::SameLine();
             if (ImGuiMCP::Button("Clear finished"))
                 ClearFinished();
             if (!error.empty())
                 ImGuiMCP::TextWrapped("%s", error.c_str());
+            RenderHelp();
             ImGuiMCP::Separator();
-            ImGuiMCP::TextWrapped(
-                "Some VM calls remain pending while this menu pauses the game. Close the menu, then reopen it to see "
-                "completion. Calls are never automatically repeated.");
-            RenderOutput();
+            const auto entries = Snapshot();
+            RenderStatus(entries);
+            RenderUsage();
+            RenderOutput(entries);
+            RenderPrompt();
         }
     }
 
