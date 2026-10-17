@@ -4,8 +4,9 @@ Open **SKSE Menu Framework → The Elder Shell → Console**. Enter statements a
 the bottom `>` prompt. Wait for completion before using a result.
 Expand **Help** for selectable syntax examples and shortcuts.
 
-Suggestions appear as you type variable names or members after `.`. Press **Tab**
-to insert the first match, or click another suggestion. Function calls show their
+Suggestions appear as you type variable names or members after `.`. Use **Tab/Shift+Tab**
+to select a match and **Enter** to insert it, or click one. Enter executes when no
+suggestion is open; accepting a suggestion never executes it. Function calls show their
 parameter types and current argument. Suggestions read metadata without running code.
 
 ## Statements and values
@@ -88,5 +89,6 @@ inputs or 256 imports, advisory warnings appear without blocking evaluation.
 The compiler cache retains 30 folders, evicting the least recently used as needed.
 Generated scripts under `Scripts/` are retained for saves.
 
-Use **Up/Down** for history. Output supports mouse selection and **Ctrl+C**;
+Use **Up/Down** for history.
+Output supports mouse selection and **Ctrl+C**;
 **Ctrl+A** selects the transcript when it has focus.

@@ -97,7 +97,19 @@ namespace elder_shell {
 
     struct CompletionItem {
         std::string name, description;
+        bool parameterlessFunction = false;
     };
+
+    inline std::string CompletionText(std::string_view source, const CompletionContext& context,
+                                      const CompletionItem& item) {
+        auto text = item.name;
+        auto next = context.end;
+        while (next < source.size() && Whitespace(source[next]))
+            ++next;
+        if (item.parameterlessFunction && (next == source.size() || source[next] != '('))
+            text += "()";
+        return text;
+    }
 
     struct CompletionResult {
         CompletionContext context;
@@ -142,10 +154,10 @@ namespace elder_shell {
                                      const EvaluationEnvironment& environment) {
         CompletionResult result;
         auto& context = result.context = CompletionAt(source, cursor);
-        const auto add = [&](std::string name, std::string description) {
+        const auto add = [&](std::string name, std::string description, bool parameterlessFunction = false) {
             if (name.size() >= context.prefix.size() && Equal(name.substr(0, context.prefix.size()), context.prefix) &&
                 std::ranges::none_of(result.items, [&](const auto& item) { return Equal(item.name, name); }))
-                result.items.push_back({std::move(name), std::move(description)});
+                result.items.push_back({std::move(name), std::move(description), parameterlessFunction});
         };
         if (!context.inString && (!context.prefix.empty() || !context.receiver.empty())) {
             if (context.receiver.empty()) {
@@ -169,7 +181,7 @@ namespace elder_shell {
                             (function.result.empty() || DeclarationType(function.result)) &&
                             std::ranges::all_of(function.parameters,
                                                 [](const auto& p) { return DeclarationType(p.type); }))
-                            add(function.name, FunctionSignature(function));
+                            add(function.name, FunctionSignature(function), function.parameters.empty());
                     if (!receiver.global)
                         for (const auto& property : script->properties)
                             if (DeclarationType(property.type))

@@ -1,6 +1,7 @@
 #include "Menu.h"
 #include "vm/VM.h"
 #include "History.h"
+#include "Suggestions.h"
 #include "runtime/Compatibility.h"
 #include "ModInfo.h"
 #include "shell/Completion.h"
@@ -20,6 +21,8 @@ namespace elder_shell {
         bool promptActive = false;
         std::size_t commandCursor = 0;
         CompletionResult completion;
+        Suggestions suggestions;
+        std::string acceptedCompletionQuery;
         std::optional<CompletionItem> chosenCompletion;
         std::array<char, 32> explorerForm{};
         std::array<char, 128> explorerScript{};
@@ -64,12 +67,15 @@ namespace elder_shell {
             if (error.empty())
                 input.fill('\0');
             completion = {};
+            acceptedCompletionQuery.clear();
             commandCursor = std::char_traits<char>::length(input.data());
             focusCommand = true;
         }
 
         void InsertCompletion(ImGuiMCP::ImGuiInputTextCallbackData* data, const CompletionContext& context,
-                              std::string_view name) {
+                              const CompletionItem& item) {
+            const auto name =
+                CompletionText(std::string_view(data->Buf, static_cast<std::size_t>(data->BufTextLen)), context, item);
             if (context.end > static_cast<std::size_t>(data->BufTextLen) ||
                 data->BufTextLen - (context.end - context.begin) + name.size() >= input.size())
                 return;
@@ -80,22 +86,29 @@ namespace elder_shell {
             data->CursorPos = static_cast<int>(context.begin + name.size());
             data->SelectionStart = data->SelectionEnd = data->CursorPos;
             history.ResetNavigation();
+            acceptedCompletionQuery = std::format("{}:{}", data->CursorPos, data->Buf);
         }
 
         int InputCallback(ImGuiMCP::ImGuiInputTextCallbackData* data) {
-            if (data->EventFlag == ImGuiMCP::ImGuiInputTextFlags_CallbackCompletion || chosenCompletion) {
+            if (chosenCompletion) {
                 if (const auto environment = CompletionMetadataSnapshot()) {
                     const auto result = Complete(data->Buf, static_cast<std::size_t>(data->CursorPos), *environment);
-                    if (chosenCompletion)
-                        InsertCompletion(data, result.context, chosenCompletion->name);
-                    else if (!result.items.empty())
-                        InsertCompletion(data, result.context, result.items.front().name);
+                    InsertCompletion(data, result.context, *chosenCompletion);
                 }
                 chosenCompletion.reset();
+            }
+            if (data->EventFlag == ImGuiMCP::ImGuiInputTextFlags_CallbackCompletion) {
+                acceptedCompletionQuery.clear();
+                if (const auto environment = CompletionMetadataSnapshot()) {
+                    const auto result = Complete(data->Buf, static_cast<std::size_t>(data->CursorPos), *environment);
+                    suggestions.Update(std::format("{}:{}", data->CursorPos, data->Buf), result.items.size());
+                    suggestions.Move(!ImGuiMCP::GetIO()->KeyShift);
+                }
             }
             commandCursor = static_cast<std::size_t>(data->CursorPos);
             if (data->EventFlag == ImGuiMCP::ImGuiInputTextFlags_CallbackEdit) {
                 history.ResetNavigation();
+                acceptedCompletionQuery.clear();
                 return 0;
             }
             if (data->EventFlag != ImGuiMCP::ImGuiInputTextFlags_CallbackHistory)
@@ -106,6 +119,7 @@ namespace elder_shell {
                     ? history.Previous(std::string_view(data->Buf, static_cast<std::size_t>(data->BufTextLen)))
                     : history.Next();
             if (command) {
+                acceptedCompletionQuery.clear();
                 ImGuiMCP::ImGuiInputTextCallbackDataManager::DeleteChars(data, 0, data->BufTextLen);
                 ImGuiMCP::ImGuiInputTextCallbackDataManager::InsertChars(data, 0, command->data(),
                                                                          command->data() + command->size());
@@ -167,8 +181,9 @@ namespace elder_shell {
                 "vars\nunset name\nclearvars\nmethods Actor\n\n"
                 "Use Game.GetFormEx(0x...) for runtime references.\n"
                 "Supply every argument, including optional ones.\n"
-                "Up/Down: history. Ctrl+C: copy selection. Ctrl+A: select focused text.\n"
-                "Tab: complete the first suggestion. Click a suggestion to choose it.\n"
+                "Up/Down: history. Tab/Shift+Tab: next/previous suggestion.\n"
+                "Enter: accept a suggestion, or execute when none. Click also accepts.\n"
+                "Ctrl+C: copy selection. Ctrl+A: select focused text.\n"
                 "Variables clear on save load. Loaded types count since Skyrim started.\n"
                 "Input and import counts describe the last prepared evaluation.";
             ImGuiMCP::ImVec2 available;
@@ -205,6 +220,22 @@ namespace elder_shell {
             }
         }
 
+        bool AcceptSuggestion() {
+            const auto query = std::format("{}:{}", commandCursor, input.data());
+            if (query == acceptedCompletionQuery)
+                return false;
+            const auto environment = CompletionMetadataSnapshot();
+            if (!environment)
+                return false;
+            const auto result = Complete(input.data(), commandCursor, *environment);
+            suggestions.Update(query, result.items.size());
+            if (result.items.empty())
+                return false;
+            chosenCompletion = result.items[suggestions.Selected()];
+            focusCommand = true;
+            return true;
+        }
+
         void RenderPrompt() {
             ImGuiMCP::AlignTextToFramePadding();
             ImGuiMCP::TextUnformatted(">");
@@ -234,7 +265,7 @@ namespace elder_shell {
             ImGuiMCP::PopStyleColor();
             ImGuiMCP::SameLine();
             const auto clicked = ImGuiMCP::Button("Execute", ImGuiMCP::ImVec2{buttonWidth, 0});
-            if (submitted || clicked)
+            if (clicked || (submitted && !AcceptSuggestion()))
                 Run();
         }
 
@@ -252,7 +283,10 @@ namespace elder_shell {
                 if (const auto environment = CompletionMetadataSnapshot())
                     completion = Complete(input.data(), commandCursor, *environment);
             }
-            const auto rows = std::min<std::size_t>(5, completion.items.size()) +
+            if (std::format("{}:{}", commandCursor, input.data()) == acceptedCompletionQuery)
+                completion.items.clear();
+            suggestions.Update(std::format("{}:{}", commandCursor, input.data()), completion.items.size());
+            const auto rows = std::min(Suggestions::VisibleRows, completion.items.size()) +
                               (completion.signature.empty() ? 0 : 1) + (completion.parameter.empty() ? 0 : 1) +
                               (completion.items.empty() ? 0 : 1);
             return rows == 0 ? 0
@@ -269,11 +303,14 @@ namespace elder_shell {
                 if (!completion.parameter.empty())
                     ImGuiMCP::TextUnformatted(completion.parameter.c_str());
                 if (!completion.items.empty())
-                    ImGuiMCP::Text("%zu matches | Tab: first match | Type to narrow", completion.items.size());
-                for (std::size_t i = 0; i < std::min<std::size_t>(5, completion.items.size()); ++i) {
+                    ImGuiMCP::Text("%zu/%zu | Tab/Shift+Tab: select | Enter: accept | Up/Down: history",
+                                   suggestions.Selected() + 1, completion.items.size());
+                const auto end =
+                    std::min(suggestions.FirstVisible() + Suggestions::VisibleRows, completion.items.size());
+                for (std::size_t i = suggestions.FirstVisible(); i < end; ++i) {
                     const auto& item = completion.items[i];
                     const auto label = item.name + " : " + item.description;
-                    if (ImGuiMCP::Selectable(label.c_str(), false)) {
+                    if (ImGuiMCP::Selectable(label.c_str(), i == suggestions.Selected())) {
                         chosenCompletion = item;
                         focusCommand = true;
                     }

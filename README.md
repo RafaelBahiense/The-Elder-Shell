@@ -30,7 +30,8 @@ Results appear below the input. `var` infers the type; ordinary Papyrus type
 declarations work too. Variables last until you load a save or start a new game.
 
 Use the **Instances** tab to find an existing script and store it in a variable,
-then call its functions or inspect its properties. **Up/Down** recalls commands;
+then call its functions or inspect its properties. **Tab/Shift+Tab** selects suggestions;
+**Enter** accepts one, then executes on the next press. **Up/Down** recalls commands;
 output can be selected and copied.
 
 Single statements only; no blocks or comments. Supply all function arguments,

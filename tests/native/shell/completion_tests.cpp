@@ -12,7 +12,7 @@ namespace {
                    {"Create", "Record", {}, true},
                    {"Broken", {}, {{"none", "missing"}}, false}},
                   {{"Value", "Float", true, true}}},
-                 {"Service", {}, {{"Lookup", "Record", {{"Int", "id"}}, true}}, {}}},
+                 {"Service", {}, {{"Lookup", "Record", {{"Int", "id"}}, true}, {"Create", "Record", {}, true}}, {}}},
                 {{"Record", "record"}, {"Record[]", "records"}, {"Int", "count"}},
                 {}};
     }
@@ -89,5 +89,35 @@ namespace {
         CHECK(Contains(Complete("record.", 7, environment), "Value"));
         environment.issues.push_back({"Record", {}, "Unlinked metadata"});
         CHECK(Complete("record.", 7, environment).items.empty());
+    }
+
+    TEST_CASE("Accepting parameterless functions adds parentheses without changing other completions") {
+        const auto text = [](std::string_view source, std::string_view name) {
+            const auto result = Suggestions(source);
+            const auto found =
+                std::ranges::find_if(result.items, [name](const auto& item) { return item.name == name; });
+            REQUIRE(found != result.items.end());
+            return CompletionText(source, result.context, *found);
+        };
+        CHECK(text("record.Res", "Reset") == "Reset()");
+        CHECK(text("Service.Cre", "Create") == "Create()");
+        CHECK(text("record.Des", "Describe") == "Describe");
+        CHECK(text("record.Val", "Value") == "Value");
+        CHECK(text("rec", "record") == "record");
+        CHECK(text("records.Len", "Length") == "Length");
+    }
+
+    TEST_CASE("Function completion preserves existing parentheses and chained suffixes") {
+        for (const std::string source : {"record.Reset()", "record.Reset ()", "record.Reset().Enabled"}) {
+            const auto cursor = source.find("Reset") + 3;
+            const auto result = Complete(source, cursor, CompletionEnvironment());
+            const auto found =
+                std::ranges::find_if(result.items, [](const auto& item) { return item.name == "Reset"; });
+            REQUIRE(found != result.items.end());
+            auto completed = source;
+            completed.replace(result.context.begin, result.context.end - result.context.begin,
+                              CompletionText(source, result.context, *found));
+            CHECK(completed == source);
+        }
     }
 }
