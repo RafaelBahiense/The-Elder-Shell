@@ -17,6 +17,11 @@ namespace elder_shell {
         std::size_t start = dot, depth = 0;
         while (start > 0) {
             const auto& token = tokens[start - 1];
+            if (depth == 0 && (Equal(token.text, "If") || Equal(token.text, "ElseIf") || Equal(token.text, "While") ||
+                               Equal(token.text, "Return") ||
+                               source.substr(token.end, tokens[start].begin - token.end).find_first_of("\r\n") !=
+                                   std::string_view::npos))
+                break;
             if (!token.quoted) {
                 if (token.text == ")" || token.text == "]")
                     ++depth;
@@ -97,18 +102,36 @@ namespace elder_shell {
 
     struct CompletionItem {
         std::string name, description;
-        bool parameterlessFunction = false;
+        std::optional<std::size_t> parameterCount;
     };
 
-    inline std::string CompletionText(std::string_view source, const CompletionContext& context,
-                                      const CompletionItem& item) {
-        auto text = item.name;
+    struct CompletionEdit {
+        std::string text;
+        std::size_t cursor = 0;
+    };
+
+    inline CompletionEdit CompletionInsertion(std::string_view source, const CompletionContext& context,
+                                              const CompletionItem& item) {
+        CompletionEdit edit{item.name, item.name.size()};
+        if (!item.parameterCount)
+            return edit;
         auto next = context.end;
-        while (next < source.size() && Whitespace(source[next]))
+        while (next < source.size() && (source[next] == ' ' || source[next] == '\t'))
             ++next;
-        if (item.parameterlessFunction && (next == source.size() || source[next] != '('))
-            text += "()";
-        return text;
+        if (next < source.size() && source[next] == '(') {
+            edit.cursor += next - context.end + 1;
+            if (*item.parameterCount == 0) {
+                auto close = next + 1;
+                while (close < source.size() && (source[close] == ' ' || source[close] == '\t'))
+                    ++close;
+                if (close < source.size() && source[close] == ')')
+                    edit.cursor += close - next;
+            }
+        } else {
+            edit.text += "()";
+            edit.cursor += *item.parameterCount == 0 ? 2 : 1;
+        }
+        return edit;
     }
 
     struct CompletionResult {
@@ -151,15 +174,16 @@ namespace elder_shell {
     }
 
     inline CompletionResult Complete(std::string_view source, std::size_t cursor,
-                                     const EvaluationEnvironment& environment) {
+                                     const EvaluationEnvironment& environment, bool explicitRequest = false) {
         CompletionResult result;
         auto& context = result.context = CompletionAt(source, cursor);
-        const auto add = [&](std::string name, std::string description, bool parameterlessFunction = false) {
+        const auto add = [&](std::string name, std::string description,
+                             std::optional<std::size_t> parameterCount = std::nullopt) {
             if (name.size() >= context.prefix.size() && Equal(name.substr(0, context.prefix.size()), context.prefix) &&
                 std::ranges::none_of(result.items, [&](const auto& item) { return Equal(item.name, name); }))
-                result.items.push_back({std::move(name), std::move(description), parameterlessFunction});
+                result.items.push_back({std::move(name), std::move(description), parameterCount});
         };
-        if (!context.inString && (!context.prefix.empty() || !context.receiver.empty())) {
+        if (!context.inString && (explicitRequest || !context.prefix.empty() || !context.receiver.empty())) {
             if (context.receiver.empty()) {
                 for (const auto& variable : environment.variables)
                     add(variable.name, variable.type);
@@ -181,7 +205,7 @@ namespace elder_shell {
                             (function.result.empty() || DeclarationType(function.result)) &&
                             std::ranges::all_of(function.parameters,
                                                 [](const auto& p) { return DeclarationType(p.type); }))
-                            add(function.name, FunctionSignature(function), function.parameters.empty());
+                            add(function.name, FunctionSignature(function), function.parameters.size());
                     if (!receiver.global)
                         for (const auto& property : script->properties)
                             if (DeclarationType(property.type))

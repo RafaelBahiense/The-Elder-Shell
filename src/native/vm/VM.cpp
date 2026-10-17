@@ -5,6 +5,7 @@
 #include "compiler/Compiler.h"
 #include "VMImports.h"
 #include "shell/EvaluationGate.h"
+#include "shell/Fragment.h"
 
 #include <mutex>
 #include <thread>
@@ -78,10 +79,26 @@ namespace elder_shell {
             return true;
         }
 
+        Variable* FragmentField(const Object& object, std::string_view name) {
+            if (!object || !object->type ||
+                object->type->linkedValid != RE::BSScript::ObjectTypeInfo::LinkValidState::kLinkedValid)
+                return nullptr;
+            const auto* fields = object->type->GetVariableIter();
+            for (std::uint32_t i = 0; fields && i < object->type->GetNumVariables(); ++i)
+                if (Equal(fields[i].name.c_str(), name))
+                    return object->GetVariable(fields[i].name);
+            return nullptr;
+        }
+
         class Completion final : public RE::BSScript::IStackCallbackFunctor {
         public:
-            Completion(Ticket ticket, std::string assignment, std::string label = {})
-                : ticket_(ticket), assignment_(std::move(assignment)), label_(std::move(label)) {}
+            Completion(Ticket ticket, std::string assignment, std::string label = {}, Object fragment = {},
+                       std::vector<SourceParameter> outputs = {})
+                : ticket_(ticket),
+                  assignment_(std::move(assignment)),
+                  label_(std::move(label)),
+                  fragment_(std::move(fragment)),
+                  outputs_(std::move(outputs)) {}
 
             void operator()(Variable result) override {
                 std::scoped_lock lock(mutex);
@@ -90,6 +107,15 @@ namespace elder_shell {
                     return;
                 if (!assignment_.empty())
                     variables.Complete(assignment_, ticket_, result);
+                for (const auto& output : outputs_) {
+                    const auto* value = FragmentField(fragment_, output.name);
+                    if (!value) {
+                        variables.Reject(ticket_);
+                        requests.Reject(ticket_, "Generated fragment field unavailable: " + output.name);
+                        return;
+                    }
+                    variables.Complete(output.name, ticket_, *value);
+                }
                 requests.Complete(ticket_, label_.empty() ? Display(result) : label_);
             }
 
@@ -102,6 +128,8 @@ namespace elder_shell {
             std::string assignment_;
             std::string label_;
             Object object_;
+            Object fragment_;
+            std::vector<SourceParameter> outputs_;
         };
 
         class Arguments final : public RE::BSScript::IFunctionArguments {
@@ -243,72 +271,102 @@ namespace elder_shell {
                     evaluationUsage.inputVariables = parameters.size();
                     evaluationUsage.importedTypes = imports.compiler.declarations.size();
                 }
-                ResolveStatement(statement, imports.environment);
+                FragmentPlan fragment;
+                if (statement.multiline)
+                    fragment = ResolveFragment(statement.expression, imports.environment);
+                else
+                    ResolveStatement(statement, imports.environment);
                 auto input = std::move(imports.compiler);
-                input.source = EvaluationSource(statement, parameters, mod::info::EvaluationMarker);
+                input.source = statement.multiline
+                                   ? FragmentSource(fragment, mod::info::EvaluationMarker)
+                                   : EvaluationSource(statement, parameters, mod::info::EvaluationMarker);
                 std::string completionLabel =
                     statement.resultType.empty() ? statement.mutation ? "Statement completed" : "No return value" : "";
                 {
                     std::scoped_lock lock(mutex);
                     if (!command.assignment.empty())
                         variables.SetDeclaredType(command.assignment, ticket, statement.resultType);
+                    for (const auto& output : fragment.outputs)
+                        variables.SetDeclaredType(output.name, ticket, output.type);
+                    if (statement.multiline)
+                        completionLabel = "Fragment completed";
                     requests.Compiling(ticket);
                 }
-                evaluationWorker = std::jthread([ticket, command, input = std::move(input),
-                                                 arguments = std::move(arguments),
-                                                 completionLabel = std::move(completionLabel)]() mutable {
-                    auto compiled = CompileEvaluation(input);
-                    auto* tasks = SKSE::GetTaskInterface();
-                    if (!tasks) {
-                        ReleaseEvaluation(ticket);
-                        Reject(ticket, "SKSE task interface unavailable");
-                        return;
-                    }
-                    tasks->AddTask([ticket, command, compiled = std::move(compiled), arguments = std::move(arguments),
-                                    completionLabel = std::move(completionLabel)]() mutable {
-                        if (!CanContinue(ticket)) {
+                evaluationWorker =
+                    std::jthread([ticket, command, input = std::move(input), arguments = std::move(arguments),
+                                  completionLabel = std::move(completionLabel), parameters,
+                                  fragment = std::move(fragment)]() mutable {
+                        auto compiled = CompileEvaluation(input);
+                        auto* tasks = SKSE::GetTaskInterface();
+                        if (!tasks) {
                             ReleaseEvaluation(ticket);
+                            Reject(ticket, "SKSE task interface unavailable");
                             return;
                         }
-                        if (!compiled.error.empty()) {
-                            ReleaseEvaluation(ticket);
-                            Reject(ticket,
-                                   "Papyrus could not compile this statement. Check argument types and "
-                                   "syntax.\n\nCompiler details:\n" +
-                                       compiled.error);
-                            return;
-                        }
-                        try {
-                            // Immutable files remain available to saved stacks. Never rewrite an existing type.
-                            const auto scripts = GameScriptDirectory();
-                            CopyEvaluationBytecode(compiled, scripts);
-                            auto* vm = VM::GetSingleton();
-                            Type type;
-                            if (!vm || !vm->GetScriptObjectType(RE::BSFixedString(compiled.script), type) || !type)
-                                throw std::runtime_error("Skyrim could not load the generated script");
-                            {
-                                std::scoped_lock lock(mutex);
-                                evaluationTypes.insert(compiled.script);
-                            }
-                            SKSE::log::info("Compiled evaluation {}: {}.Run, {} arguments", ticket.id, compiled.script,
-                                            arguments.size());
-                            RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> completion{
-                                new Completion(ticket, command.assignment, std::move(completionLabel))};
-                            {
-                                std::scoped_lock lock(mutex);
-                                requests.Submitted(ticket);
-                            }
-                            if (!vm->DispatchStaticCall(RE::BSFixedString(compiled.script), "Run",
-                                                        new Arguments(std::move(arguments)), completion)) {
+                        tasks->AddTask([ticket, command, compiled = std::move(compiled),
+                                        arguments = std::move(arguments), completionLabel = std::move(completionLabel),
+                                        parameters, fragment = std::move(fragment)]() mutable {
+                            if (!CanContinue(ticket)) {
                                 ReleaseEvaluation(ticket);
-                                Reject(ticket, "The VM rejected compiled evaluation");
+                                return;
                             }
-                        } catch (const std::exception& error) {
-                            ReleaseEvaluation(ticket);
-                            Reject(ticket, error.what());
-                        }
+                            if (!compiled.error.empty()) {
+                                ReleaseEvaluation(ticket);
+                                Reject(ticket,
+                                       "Papyrus could not compile this statement. Check argument types and "
+                                       "syntax.\n\nCompiler details:\n" +
+                                           compiled.error);
+                                return;
+                            }
+                            try {
+                                // Immutable files remain available to saved stacks. Never rewrite an existing type.
+                                const auto scripts = GameScriptDirectory();
+                                CopyEvaluationBytecode(compiled, scripts);
+                                auto* vm = VM::GetSingleton();
+                                Type type;
+                                if (!vm || !vm->GetScriptObjectType(RE::BSFixedString(compiled.script), type) || !type)
+                                    throw std::runtime_error("Skyrim could not load the generated script");
+                                {
+                                    std::scoped_lock lock(mutex);
+                                    evaluationTypes.insert(compiled.script);
+                                }
+                                SKSE::log::info("Compiled evaluation {}: {}.Run, {} arguments", ticket.id,
+                                                compiled.script, arguments.size());
+                                Object instance;
+                                if (command.evaluation.multiline) {
+                                    // This is our generated evaluator, not a fabricated receiver for an installed
+                                    // script.
+                                    if (!vm->CreateObject(RE::BSFixedString(compiled.script), instance) || !instance)
+                                        throw std::runtime_error("Skyrim could not create the fragment evaluator");
+                                    for (std::size_t i = 0; i < parameters.size(); ++i) {
+                                        auto* field = FragmentField(instance, parameters[i].name);
+                                        if (!field)
+                                            throw std::runtime_error("Generated fragment input unavailable: " +
+                                                                     parameters[i].name);
+                                        *field = arguments[i];
+                                    }
+                                }
+                                RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> completion{
+                                    new Completion(ticket, command.assignment, std::move(completionLabel), instance,
+                                                   std::move(fragment.outputs))};
+                                {
+                                    std::scoped_lock lock(mutex);
+                                    requests.Submitted(ticket);
+                                }
+                                const bool dispatched =
+                                    instance ? vm->DispatchMethodCall(instance, "Run", new Arguments({}), completion)
+                                             : vm->DispatchStaticCall(RE::BSFixedString(compiled.script), "Run",
+                                                                      new Arguments(std::move(arguments)), completion);
+                                if (!dispatched) {
+                                    ReleaseEvaluation(ticket);
+                                    Reject(ticket, "The VM rejected compiled evaluation");
+                                }
+                            } catch (const std::exception& error) {
+                                ReleaseEvaluation(ticket);
+                                Reject(ticket, error.what());
+                            }
+                        });
                     });
-                });
             } catch (const std::exception& error) {
                 ReleaseEvaluation(ticket);
                 Reject(ticket, error.what());
@@ -498,8 +556,8 @@ namespace elder_shell {
     }
 
     std::string SubmitCommand(std::string line, const PropertyInspection* inspection = nullptr,
-                              Ticket* submitted = nullptr) {
-        const auto parsed = Parse(line);
+                              Ticket* submitted = nullptr, bool multiline = false) {
+        const auto parsed = Parse(line, multiline);
         auto* tasks = SKSE::GetTaskInterface();
         if (!tasks)
             return "SKSE task interface unavailable";
@@ -566,6 +624,27 @@ namespace elder_shell {
                 return {};
             }
         }
+        if (command.evaluation.multiline) {
+            std::scoped_lock lock(mutex);
+            std::vector<SourceParameter> outputs;
+            const auto declarations = FragmentLines(command.evaluation.expression);
+            for (const auto& name : FragmentWrites(command.evaluation.expression)) {
+                const auto declaration = std::ranges::find_if(
+                    declarations, [&](const auto& item) { return item.depth == 0 && Equal(item.name, name); });
+                if (declaration != declarations.end())
+                    outputs.push_back({Equal(declaration->type, "var") ? "" : declaration->type, name});
+                else if (const auto* existing = variables.Find(name))
+                    outputs.push_back({existing->declaredType, name});
+            }
+            const auto added =
+                std::ranges::count_if(outputs, [&](const auto& output) { return !variables.Find(output.name); });
+            if (variables.Entries().size() + added > 64) {
+                requests.Reject(ticket, "64 variables are stored; unset one or use clearvars");
+                return {};
+            }
+            for (const auto& output : outputs)
+                variables.Reserve(output.name, ticket, output.type, true);
+        }
         tasks->AddTask([ticket, command, bindings = std::move(bindings)] {
             try {
                 if (command.operation == Operation::Evaluate)
@@ -579,8 +658,8 @@ namespace elder_shell {
         return {};
     }
 
-    std::string Submit(std::string line) {
-        return SubmitCommand(std::move(line));
+    std::string Submit(std::string line, bool multiline) {
+        return SubmitCommand(std::move(line), nullptr, nullptr, multiline);
     }
 
     InspectionRead ReadInspectedProperty(PropertyInspection inspection) {

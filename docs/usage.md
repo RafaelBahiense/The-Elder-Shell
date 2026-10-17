@@ -4,10 +4,12 @@ Open **SKSE Menu Framework → The Elder Shell → Console**. Enter statements a
 the bottom `>` prompt. Wait for completion before using a result.
 Expand **Help** for selectable syntax examples and shortcuts.
 
-Suggestions appear as you type variable names or members after `.`. Use **Tab/Shift+Tab**
-to select a match and **Enter** to insert it, or click one. Enter executes when no
-suggestion is open; accepting a suggestion never executes it. Function calls show their
+Suggestions appear as you type variable names or members after `.`. Use **Up/Down**
+to select a match and **Tab/Enter** to insert it, or click one. **Escape** dismisses
+the list; **Ctrl+Space** reopens it. Accepting a suggestion never executes it. Function calls show their
 parameter types and current argument. Suggestions read metadata without running code.
+Functions insert `()`, with the cursor inside when arguments are needed. Existing arguments are preserved.
+Hover the suggestion list and use the mouse wheel to scroll through all matches.
 
 ## Statements and values
 
@@ -37,9 +39,33 @@ weights[0] = 0.66
 weights.Length
 ```
 
-Only single statements are supported, without code blocks or comments.
 Use `Game.GetFormEx(0x...)` for full runtime FormIDs, including dynamic `FF…`
 references. Cast forms to their script type before accessing custom members.
+
+## Multiline mode
+
+Enable **Multiline** above the transcript. With suggestions closed, **Enter** inserts a newline;
+**Ctrl+Enter** or **Execute** runs the whole fragment. Each mode keeps its draft.
+With suggestions open, arrows select and **Tab/Enter** accepts a match. Dismiss the
+list to move the cursor with arrows or indent with Tab.
+
+```papyrus
+Actor player = Game.GetPlayer()
+If player.IsInCombat()
+    Debug.Notification("Busy!")
+Else
+    Debug.Notification("Safe.")
+EndIf
+```
+
+`If`/`While` blocks, declarations, assignments and Papyrus comments are supported.
+Top-level declarations and changes to session variables are published on completion;
+block-local variables stay local. Function return values are discarded; inspect a stored
+variable afterward. Run session helpers in single-line mode. Script, function and event
+definitions are unsupported.
+
+Closing the menu does not cancel execution. A running loop occupies the evaluation
+slot until it finishes; runtime game changes cannot be rolled back.
 
 ## Session helpers
 

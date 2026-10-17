@@ -17,13 +17,22 @@ namespace elder_shell {
             std::optional<Value> value;
             bool pending = true;
             std::string declaredType;
+            bool preserveOnReject = false;
         };
 
-        bool Reserve(std::string_view name, Ticket owner, std::string declaredType = {}) {
+        bool Reserve(std::string_view name, Ticket owner, std::string declaredType = {},
+                     bool preserveOnReject = false) {
             const auto key = Key(name);
             if (!entries_.contains(key) && entries_.size() >= 64)
                 return false;
-            entries_.insert_or_assign(key, Binding{owner, {}, true, std::move(declaredType)});
+            const auto existing = entries_.find(key);
+            std::optional<Value> previous;
+            if (preserveOnReject && existing != entries_.end() && !existing->second.pending && existing->second.value) {
+                previous = existing->second.value;
+                declaredType = existing->second.declaredType;
+            }
+            entries_.insert_or_assign(
+                key, Binding{owner, std::move(previous), true, std::move(declaredType), preserveOnReject});
             return true;
         }
 
@@ -45,7 +54,8 @@ namespace elder_shell {
         void Reject(Ticket owner) {
             for (auto& [name, binding] : entries_)
                 if (binding.pending && Same(binding.owner, owner)) {
-                    binding.value.reset();
+                    if (!binding.preserveOnReject)
+                        binding.value.reset();
                     binding.pending = false;
                 }
         }

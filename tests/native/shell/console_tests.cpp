@@ -96,6 +96,22 @@ namespace {
         CHECK(variables.Find("value")->pending);
     }
 
+    TEST_CASE("Rejected fragments preserve captured values without reviving stale assignments") {
+        Variables<int> variables;
+        REQUIRE(variables.Reserve("count", Ticket{1, 0}, "Int"));
+        variables.Complete("count", Ticket{1, 0}, 3);
+        REQUIRE(variables.Reserve("count", Ticket{2, 0}, "Float", true));
+        CHECK(variables.Find("count")->pending);
+        variables.Reject(Ticket{2, 0});
+        CHECK_FALSE(variables.Find("count")->pending);
+        CHECK(variables.Find("count")->value == 3);
+        CHECK(variables.Find("count")->declaredType == "Int");
+        REQUIRE(variables.Reserve("count", Ticket{3, 0}, "Int", true));
+        variables.Unset("count");
+        variables.Complete("count", Ticket{3, 0}, 10);
+        CHECK_FALSE(variables.Find("count"));
+    }
+
     TEST_CASE("Variable capacity permits replacement and reclamation") {
         Variables<int> variables;
         for (int i = 0; i < 64; ++i)

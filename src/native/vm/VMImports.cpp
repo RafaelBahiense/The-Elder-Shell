@@ -1,6 +1,7 @@
 #include "VMImports.h"
 #include "compiler/ScriptDeclarations.h"
 #include "StateFunctions.h"
+#include "shell/Fragment.h"
 
 namespace elder_shell {
     using VM = RE::BSScript::Internal::VirtualMachine;
@@ -56,9 +57,18 @@ namespace elder_shell {
                                          ". Check its spelling and that its script and dependencies are installed.");
             add(*result, true);
         }
+        std::vector<std::string> locals;
+        if (statement.multiline)
+            for (const auto& line : FragmentLines(statement.expression))
+                if (!line.name.empty())
+                    locals.push_back(line.name);
         for (const auto& root : SourceRoots(statement.expression)) {
             if (Equal(root, "true") || Equal(root, "false") || Equal(root, "none") || Equal(root, "as") ||
                 Equal(root, "new"))
+                continue;
+            if (statement.multiline && (FragmentKeyword(root) || std::ranges::any_of(locals, [&](const auto& name) {
+                                            return Equal(name, root);
+                                        })))
                 continue;
             if (std::ranges::any_of(parameters, [&](const auto& parameter) { return Equal(parameter.name, root); }))
                 continue;

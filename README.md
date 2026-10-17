@@ -26,15 +26,19 @@ player.GetLevel()
 Debug.Notification("It works. Now find a reason to use it.")
 ```
 
-Results appear below the input. `var` infers the type; ordinary Papyrus type
+Results appear in the transcript. `var` infers the type; ordinary Papyrus type
 declarations work too. Variables last until you load a save or start a new game.
 
 Use the **Instances** tab to find an existing script and store it in a variable,
-then call its functions or inspect its properties. **Tab/Shift+Tab** selects suggestions;
-**Enter** accepts one, then executes on the next press. **Up/Down** recalls commands;
+then call its functions or inspect its properties. **Up/Down** selects suggestions;
+**Tab/Enter** accepts one, **Escape** dismisses, and **Ctrl+Space** reopens the list.
+With suggestions closed, single-line **Up/Down** recalls commands;
 output can be selected and copied.
 
-Single statements only; no blocks or comments. Supply all function arguments,
+Enable **Multiline** for several statements, `If`/`While` blocks and comments.
+Enter inserts a newline; **Ctrl+Enter** runs the fragment.
+
+Supply all function arguments,
 including optional ones. Commands run in the real Papyrus VM and can change
 your game. There is no undo button hiding behind the sarcasm.
 

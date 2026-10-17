@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Evaluation.h"
+#include "Fragment.h"
 
 namespace elder_shell {
     enum class Operation { Methods, Variables, Unset, ClearVariables, Evaluate };
@@ -13,7 +14,7 @@ namespace elder_shell {
 
     using ParsedCommand = std::variant<Command, std::string>;
 
-    inline ParsedCommand Parse(std::string_view input) {
+    inline ParsedCommand Parse(std::string_view input, bool multiline = false) {
         if (input.size() > MaximumCommandLength)
             return "Command exceeds 4096 characters";
         while (!input.empty() && Whitespace(input.front()))
@@ -22,7 +23,8 @@ namespace elder_shell {
         const auto end = input.find_first_of(" \t\r\n");
         const auto first = input.substr(0, end);
         Command command;
-        if (Equal(first, "vars") || Equal(first, "clearvars") || Equal(first, "unset") || Equal(first, "methods")) {
+        if (!multiline &&
+            (Equal(first, "vars") || Equal(first, "clearvars") || Equal(first, "unset") || Equal(first, "methods"))) {
             std::vector<ExpressionToken> tokens;
             try {
                 tokens = ExpressionTokens(input);
@@ -47,7 +49,7 @@ namespace elder_shell {
             return command;
         }
 
-        const auto parsed = ParseEvaluation(input);
+        const auto parsed = multiline ? ParseFragment(input) : ParseEvaluation(input);
         if (const auto* error = std::get_if<std::string>(&parsed))
             return *error;
         command.evaluation = std::get<EvaluationStatement>(parsed);

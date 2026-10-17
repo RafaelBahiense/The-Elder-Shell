@@ -4,7 +4,7 @@ vcpkg_from_github(
   REPO Orvid/Caprica
   REF 2042c902ec269e33c1061ccd8aac0760c981253b
   SHA512 907b7d934f67ec0b31e4f5fe9d14e759c0aa564b82da7dc56226f2702ce0a601428f040718403bc4b3fc121c527b7a83026fd0b675b898d9d84254386398c90c
-  PATCHES patches/sessions.patch patches/fmt.patch
+  PATCHES patches/sessions.patch patches/fmt.patch patches/pooled-initializers.patch
 )
 
 # The CLI-oriented upstream build is replaced by a library-only build.

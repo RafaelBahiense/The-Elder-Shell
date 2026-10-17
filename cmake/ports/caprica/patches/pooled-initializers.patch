@@ -1,0 +1,17 @@
+diff --git a/Caprica/papyrus/statements/PapyrusDeclareStatement.h b/Caprica/papyrus/statements/PapyrusDeclareStatement.h
+--- a/Caprica/papyrus/statements/PapyrusDeclareStatement.h
++++ b/Caprica/papyrus/statements/PapyrusDeclareStatement.h
+@@ -21,10 +21,9 @@ struct PapyrusDeclareStatement final : public PapyrusStatement {
+   explicit PapyrusDeclareStatement(CapricaFileLocation loc, PapyrusType&& tp)
+       : PapyrusStatement(loc), type(std::move(tp)) { }
+   PapyrusDeclareStatement(const PapyrusDeclareStatement&) = delete;
+-  virtual ~PapyrusDeclareStatement() override {
+-    if (initialValue)
+-      delete initialValue;
+-  }
++  // The parser/semantic allocator owns initializer expressions. Its destructor
++  // chain destroys them; deleting a pool allocation here corrupts the heap.
++  virtual ~PapyrusDeclareStatement() override = default;
+ 
+   virtual bool buildCFG(PapyrusCFG& cfg) const override {
+     cfg.appendStatement(this);

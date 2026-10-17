@@ -47,6 +47,9 @@ namespace {
         CHECK(Contains(Suggestions("Service.Lookup(1)."), "Describe"));
         CHECK(Contains(Suggestions("var value = Service.Lookup(count)."), "Value"));
         CHECK(Contains(Suggestions("(records[0] as Record)."), "Value"));
+        CHECK(Contains(Suggestions("If record."), "Value"));
+        CHECK(Contains(Suggestions("While record."), "Value"));
+        CHECK(Contains(Suggestions("record.Reset()\nrecord."), "Value"));
     }
 
     TEST_CASE("Signature hints identify the current argument without evaluating calls") {
@@ -71,6 +74,15 @@ namespace {
         CHECK(Suggestions("record.Describe(\"escaped \\\" quote").items.empty());
     }
 
+    TEST_CASE("Explicit completion can list session names at an empty prompt") {
+        const auto environment = CompletionEnvironment();
+        CHECK(Complete("", 0, environment).items.empty());
+        const auto opened = Complete("", 0, environment, true);
+        CHECK(Contains(opened, "record"));
+        CHECK(Contains(opened, "Service"));
+        CHECK(Complete("\"text", 5, environment, true).items.empty());
+    }
+
     TEST_CASE("Replacement ranges preserve suffixes, following arguments and cursor position") {
         const std::string source = "record.Describe(\"text\", count)";
         const auto cursor = source.find("Describe") + 3;
@@ -91,33 +103,54 @@ namespace {
         CHECK(Complete("record.", 7, environment).items.empty());
     }
 
-    TEST_CASE("Accepting parameterless functions adds parentheses without changing other completions") {
+    TEST_CASE("Function completions insert parentheses and position the cursor for arguments") {
         const auto text = [](std::string_view source, std::string_view name) {
             const auto result = Suggestions(source);
             const auto found =
                 std::ranges::find_if(result.items, [name](const auto& item) { return item.name == name; });
             REQUIRE(found != result.items.end());
-            return CompletionText(source, result.context, *found);
+            return CompletionInsertion(source, result.context, *found);
         };
-        CHECK(text("record.Res", "Reset") == "Reset()");
-        CHECK(text("Service.Cre", "Create") == "Create()");
-        CHECK(text("record.Des", "Describe") == "Describe");
-        CHECK(text("record.Val", "Value") == "Value");
-        CHECK(text("rec", "record") == "record");
-        CHECK(text("records.Len", "Length") == "Length");
+        CHECK(text("record.Res", "Reset").text == "Reset()");
+        CHECK(text("record.Res", "Reset").cursor == 7);
+        CHECK(text("Service.Cre", "Create").text == "Create()");
+        CHECK(text("Service.Cre", "Create").cursor == 8);
+        CHECK(text("record.Des", "Describe").text == "Describe()");
+        CHECK(text("record.Des", "Describe").cursor == 9);
+        CHECK(text("record.Val", "Value").text == "Value");
+        CHECK(text("record.Val", "Value").cursor == 5);
+        CHECK(text("rec", "record").text == "record");
+        CHECK(text("records.Len", "Length").text == "Length");
     }
 
     TEST_CASE("Function completion preserves existing parentheses and chained suffixes") {
-        for (const std::string source : {"record.Reset()", "record.Reset ()", "record.Reset().Enabled"}) {
+        for (const std::string source :
+             {"record.Reset()", "record.Reset ()", "record.Reset ( )", "record.Reset().Enabled"}) {
             const auto cursor = source.find("Reset") + 3;
             const auto result = Complete(source, cursor, CompletionEnvironment());
             const auto found =
                 std::ranges::find_if(result.items, [](const auto& item) { return item.name == "Reset"; });
             REQUIRE(found != result.items.end());
+            const auto edit = CompletionInsertion(source, result.context, *found);
             auto completed = source;
-            completed.replace(result.context.begin, result.context.end - result.context.begin,
-                              CompletionText(source, result.context, *found));
+            completed.replace(result.context.begin, result.context.end - result.context.begin, edit.text);
             CHECK(completed == source);
+            CHECK(result.context.begin + edit.cursor == source.find(')') + 1);
         }
+    }
+
+    TEST_CASE("Parameterized completions preserve existing arguments and do not consume the next line") {
+        const std::string source = "record.Describe(\"hello\", 2)";
+        const auto result = Complete(source, source.find("Describe") + 3, CompletionEnvironment());
+        REQUIRE(result.items.size() == 1);
+        const auto edit = CompletionInsertion(source, result.context, result.items[0]);
+        auto completed = source;
+        completed.replace(result.context.begin, result.context.end - result.context.begin, edit.text);
+        CHECK(completed == source);
+        CHECK(result.context.begin + edit.cursor == source.find('(') + 1);
+        const std::string multiline = "record.Des\n()";
+        const auto beforeNewline = Complete(multiline, multiline.find('\n'), CompletionEnvironment());
+        REQUIRE(beforeNewline.items.size() == 1);
+        CHECK(CompletionInsertion(multiline, beforeNewline.context, beforeNewline.items[0]).text == "Describe()");
     }
 }

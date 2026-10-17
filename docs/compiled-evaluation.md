@@ -26,6 +26,11 @@ EndFunction
 `<hash>` represents a hexadecimal hash. `player` is a typed parameter; the native
 session stores the result as `level`. No quest or attached wrapper is created.
 
+Multiline fragments use an instance `Run` function on a generated evaluator object.
+Session inputs and top-level declarations are typed fields; native code reads updated
+fields after completion. Block locals retain Papyrus scope. Existing mod scripts are
+never instantiated as substitute receivers. Both paths use the same cache and execution gate.
+
 ## Types and imports
 
 - `var` infers a fixed type from signatures and literals; Caprica checks semantics.

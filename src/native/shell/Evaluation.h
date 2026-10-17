@@ -15,6 +15,7 @@ namespace elder_shell {
         bool reassignment = false;
         std::string destination, sourceValue;
         bool mutation = false;
+        bool multiline = false;
     };
 
     struct SourceParameter {

@@ -1,5 +1,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
+#include "shell/Fragment.h"
 
 #include "compiler/Compiler.h"
 #include "compiler/ScriptDeclarations.h"
@@ -158,6 +159,33 @@ namespace {
         REQUIRE(rebuilt.error.empty());
         CHECK(rebuilt.script == initial.script);
         CHECK_NOTHROW(CopyEvaluationBytecode(rebuilt, scripts));
+    }
+
+    TEST_CASE("Multiline wrappers compile control flow, typed fields and scoped locals") {
+        const EvaluationEnvironment environment{
+            {{"Actor", {}, {{"GetLevel", "Int", {}, false}, {"IsInCombat", "Bool", {}, false}}, {}},
+             {"Debug", {}, {{"Notification", {}, {{"String", "message"}}, true}}, {}}},
+            {{"Actor", "player"}, {"Int", "count"}},
+            {}};
+        for (const auto source :
+             {"var level = player.GetLevel()\nIf "
+              "player.IsInCombat()\nDebug.Notification(\"Busy!\")\nElse\nDebug.Notification(\"Safe.\")\nEndIf",
+              "While count < 3\ncount += 1\nEndWhile\nvar numbers = new Int[3]\nnumbers[0] = count",
+              "If True\nvar local = count + 1\nElse\nvar local = \"text\"\nEndIf",
+              "Int total\nIf count > 0\ntotal = count\nEndIf\nReturn"}) {
+            const auto plan = ResolveFragment(source, environment);
+            CompilerInput input{FragmentSource(plan, mod::info::EvaluationMarker), {}};
+            for (const auto& script : environment.scripts)
+                input.declarations.emplace_back(script.name, DeclarationSource(script));
+            const auto compiled = CompileEvaluation(input);
+            INFO(source, ": ", compiled.error);
+            CHECK(compiled.error.empty());
+        }
+        const auto plan = ResolveFragment("If True\nplayer.MissingMethod()\nEndIf", environment);
+        CompilerInput invalid{FragmentSource(plan, mod::info::EvaluationMarker), {}};
+        for (const auto& script : environment.scripts)
+            invalid.declarations.emplace_back(script.name, DeclarationSource(script));
+        CHECK_FALSE(CompileEvaluation(invalid).error.empty());
     }
 
     TEST_CASE("Inferred declarations and mutations compile with ordinary Papyrus semantics") {

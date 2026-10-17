@@ -37,7 +37,7 @@ namespace elder_shell {
     InstanceExplorer InstanceSnapshot();
     std::string UseInstance(std::uint64_t id, std::string variable);
 
-    std::string Submit(std::string command);
+    std::string Submit(std::string command, bool multiline = false);
     std::vector<Entry> Snapshot();
     EvaluationUsage EvaluationUsageSnapshot();
     void ClearFinished();
