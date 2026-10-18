@@ -20,7 +20,7 @@ if (-not $ClangFormat) {
 }
 if (-not $ClangFormat) { throw 'clang-format was not found. Supply -ClangFormat with an existing executable path.' }
 
-$files = foreach ($directory in @('src/native', 'tests/native')) {
+$files = foreach ($directory in @('src', 'tests')) {
     Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot $directory) -Recurse -File |
         Where-Object Extension -In @('.cpp', '.h', '.hpp') | ForEach-Object FullName
 }

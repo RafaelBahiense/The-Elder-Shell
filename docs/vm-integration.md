@@ -12,7 +12,7 @@ Named-state method tables use a packed count (low 9 bits) and a relative byte
 offset (remaining 23 bits). The pinned CommonLib's offset bitfield keeps only
 9 bits, so `GetFuncIter` can misread metadata on large scripts.
 
-`src/native/vm/StateFunctions.h` decodes the full word and checks consecutive
+`src/vm/StateFunctions.h` decodes the full word and checks consecutive
 function blocks. Additional metadata can appear after the state headers;
 the function array begins at the first nonempty state's offset. Import generation
 uses this reader and never reads function tables from unlinked types.

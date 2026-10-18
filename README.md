@@ -47,11 +47,15 @@ session commands and execution limits.
 
 ## Requirements
 
-- Skyrim Special Edition / Anniversary Edition on Windows.
-- Matching SKSE and Address Library.
-- SKSE Menu Framework **3.9+**.
+| Requirement | What to install |
+| --- | --- |
+| [SKSE](https://skse.silverlock.org/) | The build matching your Skyrim executable version. Launch the game through SKSE. |
+| [Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444) | The package covering your Skyrim executable version. |
+| [SKSE Menu Framework](https://www.nexusmods.com/skyrimspecialedition/mods/120352) **3.9+** | The in-game interface used by the shell. Install the runtime mod, not the developer headers. |
 
-Tested on **1.6.1170**. Other versions can be tried, but compatibility is unverified.
+Tested on Skyrim **1.6.1170**. Other versions can be tried, but compatibility is
+unverified. Match dependencies to your executable version, rather than the
+Special Edition / Anniversary Edition store label.
 
 ## Build
 

@@ -3,18 +3,17 @@
 | Path | Responsibility |
 | --- | --- |
 | `mod.json`, `cmake/ModInfo.h.in` | Mod identity and generated native constants |
-| `src/native/shell/` | Input, expression types, values and request ownership |
-| `src/native/compiler/` | Signature declarations, embedded Caprica sessions and PEX integrity |
-| `src/native/vm/` | Skyrim integration, metadata snapshots and VM dispatch |
-| `src/native/ui/` | Menu, transcript, instance explorer and command history |
-| `src/native/runtime/` | SKSE entry point and game lifecycle events |
-| `src/native/PCH.h` | Skyrim/SKSE precompiled headers |
-| `tests/native/` | Subsystem tests with synthetic inputs |
+| `src/shell/` | Input, expression types, values and request ownership |
+| `src/compiler/` | Signature declarations, embedded Caprica sessions and PEX integrity |
+| `src/vm/` | Skyrim integration, metadata snapshots and VM dispatch |
+| `src/ui/` | Menu, transcript, instance explorer and command history |
+| `src/runtime/` | SKSE entry point and game lifecycle events |
+| `src/PCH.h` | Skyrim/SKSE precompiled headers |
+| `tests/` | Subsystem tests with synthetic inputs |
 | `cmake/`, build/setup scripts | Dependencies, validation and packaging |
 
 Private headers stay beside their implementations. Cross-subsystem includes use
-paths such as `shell/Command.h`. There is no public SDK; an `include/` directory
-is only needed when a public API exists.
+paths such as `shell/Command.h`.
 
 Shell policy uses ordinary values and signature snapshots without Skyrim or the
 PCH. VM integration reads engine state on the game thread, passes snapshots to
