@@ -316,6 +316,8 @@ namespace elder_shell {
         }
 
         void RenderPrompt() {
+            ImGuiMCP::ImVec2 rowPosition;
+            ImGuiMCP::GetCursorPos(&rowPosition);
             ImGuiMCP::AlignTextToFramePadding();
             ImGuiMCP::TextUnformatted(">");
             ImGuiMCP::SameLine();
@@ -323,10 +325,12 @@ namespace elder_shell {
             ImGuiMCP::ImVec2 labelSize;
             ImGuiMCP::CalcTextSize(&labelSize, "Execute", nullptr, false, -1.0f);
             const auto buttonWidth = labelSize.x + style.FramePadding.x * 2;
-            const auto rightInset = std::max(style.WindowPadding.x, style.FramePadding.x);
             ImGuiMCP::ImVec2 available;
             ImGuiMCP::GetContentRegionAvail(&available);
-            const auto width = std::max(1.0f, available.x - buttonWidth - style.ItemSpacing.x - rightInset);
+            ImGuiMCP::ImVec2 inputPosition;
+            ImGuiMCP::GetCursorPos(&inputPosition);
+            const auto buttonX = inputPosition.x + available.x - buttonWidth;
+            const auto width = std::max(1.0f, available.x - buttonWidth - style.ItemSpacing.x);
             ImGuiMCP::SetNextItemWidth(width);
             ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_FrameBg, ImGuiMCP::ImVec4{0, 0, 0, 0});
             ImGuiMCP::PushStyleVar(ImGuiMCP::ImGuiStyleVar_FrameBorderSize, 0.0f);
@@ -361,6 +365,7 @@ namespace elder_shell {
             ImGuiMCP::PopStyleVar();
             ImGuiMCP::PopStyleColor();
             ImGuiMCP::SameLine();
+            ImGuiMCP::SetCursorPos({buttonX, rowPosition.y});
             const auto clicked = ImGuiMCP::Button("Execute", ImGuiMCP::ImVec2{buttonWidth, 0});
             if (clicked || submitted || shortcutSubmit)
                 Run();
