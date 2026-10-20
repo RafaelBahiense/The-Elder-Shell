@@ -2,17 +2,12 @@ name: Build release
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Existing version tag, matching mod.json (for example v0.1.0)'
-        required: true
-        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ inputs.tag }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -23,24 +18,28 @@ jobs:
     defaults:
       run:
         shell: pwsh
-    env:
-      RELEASE_TAG: ${{ inputs.tag }}
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: refs/tags/${{ inputs.tag }}
-      - name: Verify tag
+      - name: Resolve release tag
+        id: release
         run: |
-          if ($env:RELEASE_TAG -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Use a v<major>.<minor>.<patch> tag.' }
-          git show-ref --verify "refs/tags/$env:RELEASE_TAG"
-          if ($LASTEXITCODE -ne 0) { throw 'The requested ref must be an existing tag.' }
+          $identity = [IO.File]::ReadAllText((Join-Path $env:GITHUB_WORKSPACE 'mod.json')) | ConvertFrom-Json
+          $tag = "v$($identity.version)"
+          if ($tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw 'mod.json must contain a major.minor.patch version.' }
+          git fetch --no-tags origin "refs/tags/${tag}:refs/tags/${tag}"
+          if ($LASTEXITCODE -ne 0) { throw "Push the existing release tag $tag before running this workflow." }
+          [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "tag=$tag`n")
+          [IO.File]::AppendAllText($env:GITHUB_ENV, "RELEASE_TAG=$tag`n")
+      - uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ steps.release.outputs.tag }}
       - uses: ./.github/actions/setup
       - name: Build release archives
         run: ./package.ps1 -Tag $env:RELEASE_TAG
       - name: Upload installable and source archives
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ inputs.tag }}
+          name: release-${{ steps.release.outputs.tag }}
           path: |
             build/dist/*.zip
             build/dist/SHA256SUMS.txt

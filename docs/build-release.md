@@ -39,7 +39,8 @@ Changes limited to Markdown or `docs/` skip CI.
 Dependency binaries and CommonLib objects are cached separately from project code.
 
 For a release, commit the version change and push a matching `v<version>` tag.
-After CI passes, open **Actions → Build release → Run workflow** and enter the tag.
+After CI passes, open **Actions → Build release → Run workflow**. The workflow reads
+`mod.json` from the selected ref and builds its existing `v<version>` tag.
 This manual workflow creates both ZIPs, checksums and a draft GitHub release.
 Review its notes and publish it. Pushing a tag does not create a release.
 A mismatched tag fails packaging. Both ZIPs are also available as workflow artifacts.
