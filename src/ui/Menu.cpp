@@ -4,6 +4,7 @@
 #include "Suggestions.h"
 #include "CompletionControls.h"
 #include "runtime/Compatibility.h"
+#include "runtime/CompletionInput.h"
 #include "ModInfo.h"
 #include "shell/Completion.h"
 
@@ -354,6 +355,7 @@ namespace elder_shell {
                                                             InputCallback);
             }
             promptActive = ImGuiMCP::IsItemActive();
+            PublishCompletionInput(promptActive && suggestions.Visible());
             if (promptActive && suggestions.Visible()) {
                 // Reserve next frame's keys before ImGui's focus navigation.
                 const auto owner = ImGuiMCP::GetID(multiline ? "##Fragment" : "##Command");
@@ -424,6 +426,11 @@ namespace elder_shell {
         }
 
         void __stdcall Render() {
+            if (TakeCompletionDismissal()) {
+                suggestions.Dismiss();
+                chosenCompletion.reset();
+                focusCommand = true;
+            }
             if (!IsTestedRuntime())
                 ImGuiMCP::TextWrapped("%s", UntestedRuntimeWarning.data());
 
@@ -463,6 +470,7 @@ namespace elder_shell {
             return;
         }
         SKSEMenuFramework::SetSection(mod::info::DisplayName);
+        RegisterCompletionInput();
         SKSEMenuFramework::AddSectionItem("Console", Render);
         SKSEMenuFramework::AddSectionItem("Variables", RenderVariables);
         SKSEMenuFramework::AddSectionItem("Instances", RenderInstances);
