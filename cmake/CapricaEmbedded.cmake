@@ -4,9 +4,9 @@ target_link_libraries(caprica_embedded INTERFACE Caprica::caprica)
 
 # Adapter changes also invalidate PEX caches, independently of the library port.
 set(profile_files
-  "${PROJECT_SOURCE_DIR}/src/compiler/EmbeddedCompiler.cpp"
-  "${PROJECT_SOURCE_DIR}/src/compiler/EmbeddedCompiler.h"
-  "${PROJECT_SOURCE_DIR}/src/compiler/Compilation.h")
+  "${PROJECT_SOURCE_DIR}/src/native/compiler/EmbeddedCompiler.cpp"
+  "${PROJECT_SOURCE_DIR}/src/native/compiler/EmbeddedCompiler.h"
+  "${PROJECT_SOURCE_DIR}/src/native/compiler/Compilation.h")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${profile_files})
 set(profile "${Caprica_BUILD_ID}")
 foreach(file IN LISTS profile_files)

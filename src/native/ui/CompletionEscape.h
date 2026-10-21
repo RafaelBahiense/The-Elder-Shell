@@ -3,7 +3,7 @@
 #include <atomic>
 
 namespace elder_shell {
-    
+
     class CompletionEscape {
     public:
         void Publish(bool visible) {
