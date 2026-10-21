@@ -9,6 +9,9 @@ function Run([string]$program, [string[]]$arguments) {
     if ($LASTEXITCODE -ne 0) { throw "$program failed (exit $LASTEXITCODE)" }
 }
 
+Run dotnet @('restore', (Join-Path $root 'tests/plugin/TheElderShell.Plugin.Tests.csproj'),
+    '--locked-mode', '--configfile', (Join-Path $root 'NuGet.Config'))
+
 if (!$CommonLib) {
     $CommonLib = Join-Path $localTools 'CommonLibSSE-NG'
     $revision = 'b93280e832f263dbef44e44cbe2936622a02f91a'

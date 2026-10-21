@@ -2,7 +2,7 @@
 
 Run Papyrus statements inside Skyrim through an SKSE Menu Framework console.
 Inspect live scripts, call functions, and read or change properties without
-building a test mod or restarting the game. No ESP required.
+building a test mod or restarting the game.
 
 ## Why this exists
 
@@ -38,8 +38,12 @@ output can be selected and copied.
 Enable **Multiline** for several statements, `If`/`While` blocks and comments.
 Enter inserts a newline; **Ctrl+Enter** runs the fragment.
 
-Supply all function arguments,
-including optional ones. Commands run in the real Papyrus VM and can change
+Use `ElderShell.Console.Execute("help")` for Skyrim console output and
+`ElderShell.Diagnostics.InspectQuest(quest)` for a quest report. `ElderShell` is a
+read-only binding to real quest-attached service scripts, using ordinary Papyrus syntax.
+
+For other installed scripts, supply all function arguments, including optional ones.
+Commands run in the real Papyrus VM and can change
 your game. There is no undo button hiding behind the sarcasm.
 
 See the [usage guide](docs/usage.md) for properties, arrays, instance lookup,
@@ -59,12 +63,15 @@ Special Edition / Anniversary Edition store label.
 
 ## Build
 
-With Visual Studio 2022 C++ tools, Windows SDK, CMake and Ninja installed:
+With Visual Studio 2022 C++ tools, Windows SDK, CMake, Ninja and .NET 10 installed:
 
 ```powershell
 ./setup.ps1
 ./build.ps1
 ```
+
+Install the complete mod package and enable **TheElderShell.esp**. Its ESL-flagged
+service quest and three scripts are included; keep them with the DLL.
 
 Install `build/package` through your mod manager. Caprica is embedded in the DLL;
 no separate compiler is needed in-game. Builds do not modify your game directory.

@@ -263,7 +263,9 @@ namespace elder_shell {
                         }
                     }
                     Require(")");
-                    if (arguments != method->parameters.size())
+                    const auto required = std::ranges::count_if(
+                        method->parameters, [](const auto& parameter) { return parameter.defaultValue.empty(); });
+                    if (arguments < static_cast<std::size_t>(required) || arguments > method->parameters.size())
                         throw std::runtime_error(script->name + "." + name + " requires " +
                                                  std::to_string(method->parameters.size()) +
                                                  " arguments; supply optional arguments too.");

@@ -23,6 +23,9 @@ namespace elder_shell {
         const auto end = input.find_first_of(" \t\r\n");
         const auto first = input.substr(0, end);
         Command command;
+        if (!multiline && Equal(first, "console")) {
+            return "Use ElderShell.Console.Execute(\"command\") instead of the console shortcut.";
+        }
         if (!multiline &&
             (Equal(first, "vars") || Equal(first, "clearvars") || Equal(first, "unset") || Equal(first, "methods"))) {
             std::vector<ExpressionToken> tokens;

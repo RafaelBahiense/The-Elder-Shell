@@ -72,6 +72,8 @@ switch ($Target) {
         $plugins = Join-Path $package 'SKSE/Plugins'
         [IO.Directory]::CreateDirectory($plugins) | Out-Null
         Copy-Item -LiteralPath (Join-Path $build ($identity.binaryName + '.dll')) -Destination $plugins
+        Copy-Item -LiteralPath (Join-Path $build 'services/TheElderShell.esp') -Destination $package
+        Copy-Item -LiteralPath (Join-Path $build 'services/Scripts') -Destination $package -Recurse
         $notices = Join-Path $package ('docs/' + $identity.binaryName)
         [IO.Directory]::CreateDirectory((Join-Path $notices 'licenses')) | Out-Null
         Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination $notices
@@ -81,7 +83,7 @@ switch ($Target) {
         Write-Output "Installable files: $build/package"
     }
     'Test' {
-        Run cmake @('--build',$build,'--target','console_tests','compiler_tests','--parallel','3')
+        Run cmake @('--build',$build,'--target','console_tests','compiler_tests','plugin_tests_build','--parallel','3')
         Run ctest @('--test-dir',$build,'--output-on-failure')
     }
     'Analyze' { Run cmake @('--build',$build,'--target','native_analysis','--parallel','3') }

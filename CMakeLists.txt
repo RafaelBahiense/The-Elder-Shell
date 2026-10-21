@@ -60,7 +60,44 @@ if(MSVC)
 endif()
 add_test(NAME console_tests COMMAND console_tests)
 if(WIN32)
+  find_program(DOTNET_EXECUTABLE dotnet REQUIRED)
+  file(GLOB PLUGIN_SOURCES CONFIGURE_DEPENDS src/plugin/*.cs src/plugin/*.csproj src/plugin/packages.lock.json
+    tests/plugin/*.cs tests/plugin/*.csproj tests/plugin/packages.lock.json)
+  set(PLUGIN_DLL "${PROJECT_SOURCE_DIR}/build/dotnet/bin/TheElderShell.Plugin/Release/net10.0/TheElderShell.Plugin.dll")
+  set(PLUGIN_TEST_DLL "${PROJECT_SOURCE_DIR}/build/dotnet/bin/TheElderShell.Plugin.Tests/Release/net10.0/TheElderShell.Plugin.Tests.dll")
+  add_custom_command(OUTPUT "${PLUGIN_DLL}" "${PLUGIN_TEST_DLL}"
+    COMMAND "${DOTNET_EXECUTABLE}" build "${PROJECT_SOURCE_DIR}/tests/plugin/TheElderShell.Plugin.Tests.csproj"
+      --no-restore --configuration Release
+    DEPENDS ${PLUGIN_SOURCES} mod.json global.json Directory.Build.props NuGet.Config
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    VERBATIM)
+  add_custom_command(OUTPUT "${PROJECT_BINARY_DIR}/services/TheElderShell.esp"
+    COMMAND "${DOTNET_EXECUTABLE}" "${PLUGIN_DLL}" "${PROJECT_BINARY_DIR}/services"
+    DEPENDS "${PLUGIN_DLL}"
+    VERBATIM)
+  add_custom_target(plugin_tests_build ALL DEPENDS "${PLUGIN_TEST_DLL}")
+  add_test(NAME plugin_tests COMMAND "${DOTNET_EXECUTABLE}" "${PLUGIN_TEST_DLL}")
+
+  add_executable(compile_papyrus tools/CompilePapyrus.cpp src/native/compiler/EmbeddedCompiler.cpp)
+  target_include_directories(compile_papyrus PRIVATE src/native "${PROJECT_BINARY_DIR}/generated")
+  target_link_libraries(compile_papyrus PRIVATE caprica_embedded)
+  target_compile_options(compile_papyrus PRIVATE /W4 /WX /utf-8)
+  set(SERVICE_OUTPUTS)
+  foreach(SCRIPT ElderShellRoot ElderShellConsole ElderShellDiagnostics)
+    list(APPEND SERVICE_OUTPUTS "${PROJECT_BINARY_DIR}/services/Scripts/${SCRIPT}.pex")
+  endforeach()
+  file(GLOB SERVICE_SOURCES CONFIGURE_DEPENDS src/papyrus/*.psc)
+  add_custom_command(OUTPUT ${SERVICE_OUTPUTS}
+    COMMAND compile_papyrus "${PROJECT_SOURCE_DIR}/src/papyrus" "${PROJECT_BINARY_DIR}/services"
+    DEPENDS compile_papyrus ${SERVICE_SOURCES}
+    VERBATIM)
+  add_custom_target(service_assets ALL DEPENDS ${SERVICE_OUTPUTS} "${PROJECT_BINARY_DIR}/services/TheElderShell.esp")
+  if(TARGET mod)
+    add_dependencies(mod service_assets)
+  endif()
   add_executable(compiler_tests ${COMPILER_TEST_SOURCES} src/native/compiler/Compiler.cpp src/native/compiler/EmbeddedCompiler.cpp)
+  target_compile_definitions(compiler_tests PRIVATE ELDER_SHELL_SOURCE_ROOT="${PROJECT_SOURCE_DIR}")
+  add_dependencies(compiler_tests service_assets)
   target_include_directories(compiler_tests PRIVATE src/native "${PROJECT_BINARY_DIR}/generated")
   target_link_libraries(compiler_tests PRIVATE doctest::doctest bcrypt)
   target_link_libraries(compiler_tests PRIVATE caprica_embedded psapi)

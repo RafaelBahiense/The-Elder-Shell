@@ -13,6 +13,50 @@
 
 using namespace elder_shell;
 
+TEST_CASE("Packaged service scripts support normal compiled property chains in both modes") {
+    // The asset builder compiles the actual shipped sources. Use its isolated
+    // vanilla signatures to compile callers without Bethesda source inputs.
+    const auto sourceRoot = std::filesystem::path(ELDER_SHELL_SOURCE_ROOT) / "src" / "papyrus";
+    const auto scratch = std::filesystem::temp_directory_path() / "elder-shell-service-compiler-tests";
+    std::filesystem::create_directories(scratch);
+    const auto write = [](const auto& path, std::string_view text) {
+        std::ofstream stream(path, std::ios::binary | std::ios::trunc);
+        stream.exceptions(std::ios::failbit | std::ios::badbit);
+        stream << text;
+    };
+    // Standalone fixtures, kept separate from the service asset output.
+    write(scratch / "Form.psc", "Scriptname Form\n");
+    write(scratch / "Quest.psc", "Scriptname Quest extends Form\nBool Function Start() Native\n");
+    write(scratch / "ObjectReference.psc", "Scriptname ObjectReference extends Form\n");
+    write(scratch / "ServiceTest.flg", "Flag Hidden 0 { Script Property }\n");
+    const EmbeddedCompiler compiler;
+    const CompilationRequest request{
+        scratch / "ServiceTest.psc", scratch / "ServiceTest.flg", scratch, {scratch, sourceRoot}};
+    for (const auto expression :
+         {"ElderShell.Console.Execute(\"help\")", "ElderShell.Console.Execute(\"getav health\", target)",
+          "ElderShell.Diagnostics.InspectQuest(quest)", "ElderShell.Diagnostics.RestartQuest(quest)",
+          "ElderShell.Diagnostics.RestartQuest(quest, True)"}) {
+        EvaluationStatement statement;
+        statement.resultType = "String";
+        statement.expression = expression;
+        write(request.source,
+              EvaluationSource(statement,
+                               {{"ElderShellRoot", "ElderShell"}, {"Quest", "quest"}, {"ObjectReference", "target"}},
+                               "ServiceTest"));
+        auto report = compiler.Compile(request);
+        INFO(report.diagnostics);
+        REQUIRE(report.succeeded);
+        FragmentPlan fragment;
+        fragment.fields = {
+            {"ElderShellRoot", "ElderShell"}, {"Quest", "quest"}, {"ObjectReference", "target"}, {"String", "output"}};
+        fragment.body = "output = " + std::string(expression) + "\n";
+        write(request.source, FragmentSource(fragment, "ServiceTest"));
+        report = compiler.Compile(request);
+        INFO(report.diagnostics);
+        REQUIRE(report.succeeded);
+    }
+}
+
 namespace {
     std::filesystem::path EmbeddedWorkspace() {
         std::wstring module(32768, '\0');

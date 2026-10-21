@@ -47,6 +47,8 @@ namespace elder_shell {
                 if (i)
                     source += ", ";
                 source += function.parameters[i].type + " " + function.parameters[i].name;
+                if (!function.parameters[i].defaultValue.empty())
+                    source += " = " + function.parameters[i].defaultValue;
             }
             source += ")";
             if (function.global)

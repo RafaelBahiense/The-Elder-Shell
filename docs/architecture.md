@@ -7,13 +7,21 @@
 | `src/native/compiler/` | Signature declarations, embedded Caprica sessions and PEX integrity |
 | `src/native/vm/` | Skyrim integration, metadata snapshots and VM dispatch |
 | `src/native/ui/` | Menu, transcript, instance explorer and command history |
-| `src/native/runtime/` | SKSE entry point and game lifecycle events |
+| `src/native/runtime/` | SKSE lifecycle, input interception and Skyrim console dispatch |
+| `src/papyrus/` | Quest-owned service scripts and normal latent quest startup |
+| `src/plugin/` | Mutagen definitions generating the service ESP |
+| `tools/CompilePapyrus.cpp` | Build entry point for service PEX compilation |
 | `src/native/PCH.h` | Skyrim/SKSE precompiled headers |
-| `tests/native/` | Subsystem tests with synthetic inputs |
+| `tests/native/`, `tests/plugin/` | Native subsystem and plugin record tests |
 | `cmake/`, build/setup scripts | Dependencies, validation and packaging |
 
 Private headers stay beside their implementations. Cross-subsystem includes use
 paths such as `shell/Command.h`, relative to `src/native/`.
+
+Mutagen generates the ESP from typed record definitions in `src/plugin/`.
+Plugin tests read the output back to verify the service quest's stable FormID,
+flags, script attachments and deterministic serialization. Papyrus compilation
+uses embedded Caprica separately.
 
 Shell policy uses ordinary values and signature snapshots without Skyrim or the
 PCH. VM integration reads engine state on the game thread, passes snapshots to

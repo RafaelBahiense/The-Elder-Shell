@@ -25,7 +25,8 @@ Debug.Notification("Hello from Papyrus")
 `Actor player = Game.GetPlayer()` also work. Reassignment retains that type;
 bare `None` needs an explicit declared type. Names are case-insensitive.
 Expressions display results; functions without a result display **No return
-value**. Supply every argument, including optional ones.
+value**. For installed scripts, supply every argument, including optional ones;
+the packaged Elder Shell services also expose their source defaults.
 
 Properties and arrays use Papyrus syntax. Here, `instance` is an existing script
 selected through the Instances tab, and `PropertyName` stands for one of its
@@ -101,6 +102,50 @@ Values may change between refresh and read; reassigned variables require a refre
 Large snapshots are truncated; assign an array element to another variable for detail.
 
 ## Execution and output
+
+`ElderShell` is a read-only shell binding to the packaged service quest. `Console`
+and `Diagnostics` are real typed, read-only Papyrus properties. They support the
+same completion, assignment and multiline execution as other script objects.
+
+```papyrus
+ElderShell.Console.Execute("player.getavinfo health")
+var output = ElderShell.Console.Execute("help \"iron sword\" 4")
+ElderShell.Console.Execute("getav health", player)
+output
+```
+
+`Execute(String command, ObjectReference target = None)` returns immediate output
+as a String. Omit the target or pass `None` to use Skyrim's console selection;
+passing a reference targets that command without changing the selection. Delayed
+work and its output are not awaited. No output does not confirm success. Long
+output is truncated. The former `console ...` shortcut has been removed.
+
+Inspect and explicitly restart a stopped quest:
+
+```papyrus
+ElderShell.Diagnostics.InspectQuest(quest)
+ElderShell.Diagnostics.RestartQuest(quest)
+ElderShell.Diagnostics.RestartQuest(quest, True)
+```
+
+`InspectQuest` returns the runtime state, stage, flags, Run Once, `alreadyRun`,
+story event and bounded alias listing. Reference aliases show their current
+bindings; other alias types are identified without guessing their bindings.
+It does not evaluate quest scripts or diagnose why an alias failed to fill.
+
+`RestartQuest(Quest target, Bool clearAlreadyRun = False)` requires a fully stopped
+quest. For a Run Once quest with `alreadyRun` set, it requires the explicit `True`
+argument. That clears only `alreadyRun`, marks the quest changed for saving,
+and preserves the authored Run Once flag. The report includes before/after
+inspection and the actual return from Papyrus `Quest.Start()` after it finishes.
+It does not reset stages, force aliases or bypass startup conditions; normal
+startup can run quest scripts and stages. Event-driven quests and the service
+quest are rejected. Make a separate save before recovery; a failed start does
+not undo the requested flag change or any script effects.
+
+In multiline mode, store returned strings in variables and inspect them afterward.
+`clearvars` and loading a save clear session variables; `ElderShell` remains available
+from its real quest attachment. The binding cannot be reassigned, shadowed or unset.
 
 Some VM calls need the menu closed before they proceed. Completion means the
 VM returned; runtime Papyrus errors belong in the game's script log. Commands

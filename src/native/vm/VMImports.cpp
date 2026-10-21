@@ -2,6 +2,7 @@
 #include "compiler/ScriptDeclarations.h"
 #include "StateFunctions.h"
 #include "shell/Fragment.h"
+#include "shell/Services.h"
 
 namespace elder_shell {
     using VM = RE::BSScript::Internal::VirtualMachine;
@@ -132,6 +133,7 @@ namespace elder_shell {
                                                                                   ? name.c_str()
                                                                                   : "argument" + std::to_string(i)});
                 }
+                services::ApplyDefaults(declaration.name, signature);
                 declaration.functions.push_back(std::move(signature));
             };
             const auto* globals = type->GetGlobalFuncIter();

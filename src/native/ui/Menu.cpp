@@ -7,6 +7,7 @@
 #include "runtime/CompletionInput.h"
 #include "ModInfo.h"
 #include "shell/Completion.h"
+#include "shell/Command.h"
 
 #include <SKSEMCP/SKSEMenuFramework.hpp>
 #include <algorithm>
@@ -181,7 +182,9 @@ namespace elder_shell {
                 "Debug.Notification(\"Hello from Papyrus\")\n"
                 "var player = Game.GetPlayer()\n"
                 "instance.Property = value\n\n"
-                "vars\nunset name\nclearvars\nmethods Actor\n\n"
+                "vars\nunset name\nclearvars\nmethods Actor\n"
+                "ElderShell.Console.Execute(\"player.getavinfo health\")\n"
+                "Console commands show immediate output; delayed output is not captured.\n\n"
                 "Use Game.GetFormEx(0x...) for runtime references.\n"
                 "Supply every argument, including optional ones.\n"
                 "Suggestions: Up/Down selects; Tab/Enter or click accepts; Escape dismisses.\n"

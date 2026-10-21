@@ -20,6 +20,7 @@ namespace elder_shell {
 
     struct SourceParameter {
         std::string type, name;
+        std::string defaultValue;
     };
 
     // This scanner only isolates a statement and finds variable roots. Caprica

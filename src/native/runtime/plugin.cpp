@@ -2,6 +2,7 @@
 #include "vm/VM.h"
 #include "Compatibility.h"
 #include "ModInfo.h"
+#include "Services.h"
 
 #include <spdlog/sinks/basic_file_sink.h>
 
@@ -47,6 +48,9 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse) {
         SKSE::log::warn("{}", elder_shell::UntestedRuntimeWarning);
 
     auto* messaging = SKSE::GetMessagingInterface();
+    auto* papyrus = SKSE::GetPapyrusInterface();
+    if (!papyrus || !papyrus->Register(elder_shell::RegisterServices))
+        return false;
     if (!messaging || !messaging->RegisterListener(OnMessage))
         return false;
     SKSE::log::info("{} loaded", mod::info::DisplayName);

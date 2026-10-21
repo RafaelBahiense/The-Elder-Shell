@@ -6,6 +6,8 @@
 #include "VMImports.h"
 #include "shell/EvaluationGate.h"
 #include "shell/Fragment.h"
+#include "runtime/Services.h"
+#include "shell/Services.h"
 
 #include <mutex>
 #include <thread>
@@ -252,6 +254,13 @@ namespace elder_shell {
                 std::vector<SourceParameter> parameters;
                 std::vector<Variable> arguments;
                 for (const auto& root : SourceRoots(command.evaluation.expression)) {
+                    if (Equal(root, services::Root)) {
+                        Variable value;
+                        value.SetObject(ServiceRoot());
+                        parameters.push_back({services::RootScript, root});
+                        arguments.push_back(std::move(value));
+                        continue;
+                    }
                     const auto binding =
                         std::ranges::find_if(bindings, [&](const auto& item) { return Equal(item.first, root); });
                     if (binding == bindings.end())
@@ -513,6 +522,8 @@ namespace elder_shell {
     }
 
     std::string UseInstance(std::uint64_t id, std::string variable) {
+        if (Equal(variable, services::Root))
+            return "ElderShell is a read-only built-in binding; choose another variable name.";
         if (!Identifier(variable))
             return "Choose a variable name using letters, digits and underscores";
         auto* tasks = SKSE::GetTaskInterface();
@@ -576,6 +587,10 @@ namespace elder_shell {
             }
         }
         auto command = std::get<Command>(parsed);
+        if (services::WritesRoot(command)) {
+            Reject(ticket, "ElderShell is a read-only built-in binding; choose another variable name.");
+            return {};
+        }
         EvaluationBindings bindings;
         if (command.operation == Operation::Evaluate) {
             std::scoped_lock lock(mutex);
@@ -741,7 +756,7 @@ namespace elder_shell {
         auto* tasks = SKSE::GetTaskInterface();
         if (!tasks)
             return;
-        std::vector<SourceParameter> parameters;
+        std::vector<SourceParameter> parameters{{services::RootScript, services::Root}};
         auto key = expression;
         std::uint64_t revision;
         {

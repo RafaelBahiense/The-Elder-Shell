@@ -20,13 +20,20 @@ if (-not $ClangFormat) {
 }
 if (-not $ClangFormat) { throw 'clang-format was not found. Supply -ClangFormat with an existing executable path.' }
 
-$files = foreach ($directory in @('src/native', 'tests/native')) {
+$files = foreach ($directory in @('src/native', 'tests/native', 'tools')) {
     Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot $directory) -Recurse -File |
         Where-Object Extension -In @('.cpp', '.h', '.hpp') | ForEach-Object FullName
 }
 $flags = @(if ($Fix) { '-i' } else { '--dry-run'; '--Werror' })
 & $ClangFormat '--style=file' '--fallback-style=none' @flags @files
 if ($LASTEXITCODE -ne 0) { throw 'C++ formatting failed. Run ./lint.ps1 -Fix and review the changes.' }
+
+foreach ($project in @('src/plugin/TheElderShell.Plugin.csproj', 'tests/plugin/TheElderShell.Plugin.Tests.csproj')) {
+    $arguments = @('format', (Join-Path $PSScriptRoot $project), '--no-restore', '--severity', 'info')
+    if (-not $Fix) { $arguments += '--verify-no-changes' }
+    & dotnet @arguments
+    if ($LASTEXITCODE -ne 0) { throw 'C# formatting failed. Run ./lint.ps1 -Fix and review the changes.' }
+}
 if ($NativeAnalysis) {
     & (Join-Path $PSScriptRoot 'build.ps1') -Target Analyze
     if ($LASTEXITCODE -ne 0) { throw 'Native analysis failed.' }

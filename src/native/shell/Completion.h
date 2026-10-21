@@ -169,6 +169,8 @@ namespace elder_shell {
             if (i)
                 text += ", ";
             text += function.parameters[i].type + " " + function.parameters[i].name;
+            if (!function.parameters[i].defaultValue.empty())
+                text += " = " + function.parameters[i].defaultValue;
         }
         return text + ") -> " + (function.result.empty() ? "None" : function.result);
     }
@@ -233,6 +235,8 @@ namespace elder_shell {
                     const auto& parameter = function->parameters[context.argument];
                     result.parameter = "Argument " + std::to_string(context.argument + 1) + ": " + parameter.type +
                                        " " + parameter.name;
+                    if (!parameter.defaultValue.empty())
+                        result.parameter += " = " + parameter.defaultValue + " (optional)";
                 } else if (!function->parameters.empty())
                     result.parameter = "All parameters supplied; close the call with )";
                 break;

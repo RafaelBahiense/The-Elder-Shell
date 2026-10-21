@@ -83,17 +83,20 @@ Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $binary = @{}
 Add-File $binary (Join-Path $root ('build/' + $identity.binaryName + '.dll')) ('SKSE/Plugins/' + $identity.binaryName + '.dll')
+Add-File $binary (Join-Path $root 'build/services/TheElderShell.esp') 'TheElderShell.esp'
+Add-Tree $binary (Join-Path $root 'build/services/Scripts') 'Scripts'
+Add-Tree $binary (Join-Path $root 'src/papyrus') 'Source/Scripts'
 Add-File $binary (Join-Path $root 'LICENSE') ('docs/' + $identity.binaryName + '/LICENSE')
 Add-Tree $binary (Join-Path $root 'licenses') ('docs/' + $identity.binaryName + '/licenses')
 
 $source = @{}
-foreach ($directory in @('src', 'tests', 'cmake', 'docs', 'licenses', '.github')) {
+foreach ($directory in @('src', 'tests', 'tools', 'cmake', 'docs', 'licenses', '.github')) {
     if (Test-Path -LiteralPath (Join-Path $root $directory)) {
         Add-Tree $source (Join-Path $root $directory) $directory
     }
 }
 foreach ($file in (Get-ChildItem -LiteralPath $root -File -Force)) {
-    if ($file.Extension -eq '.ps1' -or $file.Name -in @('mod.json', 'CMakeLists.txt', 'vcpkg.json', 'README.md', 'LICENSE', '.clang-format', '.editorconfig', '.gitignore', 'AGENTS.md')) {
+    if ($file.Extension -eq '.ps1' -or $file.Name -in @('mod.json', 'CMakeLists.txt', 'vcpkg.json', 'global.json', 'Directory.Build.props', 'NuGet.Config', 'README.md', 'LICENSE', '.clang-format', '.editorconfig', '.gitignore', 'AGENTS.md')) {
         Add-File $source $file.FullName $file.Name
     }
 }

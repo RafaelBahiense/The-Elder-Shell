@@ -1,8 +1,16 @@
 name: Prepare build dependencies
-description: Restore caches and configure pinned native dependencies.
+description: Restore caches and configure pinned build dependencies.
 runs:
   using: composite
   steps:
+    - uses: actions/setup-dotnet@v5
+      with:
+        global-json-file: global.json
+        cache: true
+        cache-dependency-path: |
+          src/plugin/packages.lock.json
+          tests/plugin/packages.lock.json
+
     - name: Identify toolchain
       id: toolchain
       shell: pwsh
