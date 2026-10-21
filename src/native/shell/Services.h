@@ -26,6 +26,17 @@ namespace elder_shell::services {
         if (Equal(script, DiagnosticsScript) && Equal(function.name, "RestartQuest") &&
             function.parameters.size() == 2 && Equal(function.parameters[1].type, "Bool"))
             function.parameters[1].defaultValue = "False";
+        if (Equal(script, DiagnosticsScript) &&
+            (Equal(function.name, "InspectPackage") || Equal(function.name, "RestorePackageInterruptFlags")) &&
+            function.parameters.size() == 1 && Equal(function.parameters[0].type, "Package"))
+            function.parameters[0].name = "target";
+        if (Equal(script, DiagnosticsScript) && Equal(function.name, "SetPackageInterruptFlag") &&
+            function.parameters.size() == 3 && Equal(function.parameters[0].type, "Package") &&
+            Equal(function.parameters[1].type, "String") && Equal(function.parameters[2].type, "Bool")) {
+            function.parameters[0].name = "target";
+            function.parameters[1].name = "flag";
+            function.parameters[2].name = "enabled";
+        }
     }
 
     inline bool WritesRoot(const Command& command) {

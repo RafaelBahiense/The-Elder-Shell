@@ -28,6 +28,7 @@ TEST_CASE("Packaged service scripts support normal compiled property chains in b
     write(scratch / "Form.psc", "Scriptname Form\n");
     write(scratch / "Quest.psc", "Scriptname Quest extends Form\nBool Function Start() Native\n");
     write(scratch / "ObjectReference.psc", "Scriptname ObjectReference extends Form\n");
+    write(scratch / "Package.psc", "Scriptname Package extends Form\n");
     write(scratch / "ServiceTest.flg", "Flag Hidden 0 { Script Property }\n");
     const EmbeddedCompiler compiler;
     const CompilationRequest request{
@@ -35,20 +36,27 @@ TEST_CASE("Packaged service scripts support normal compiled property chains in b
     for (const auto expression :
          {"ElderShell.Console.Execute(\"help\")", "ElderShell.Console.Execute(\"getav health\", target)",
           "ElderShell.Diagnostics.InspectQuest(quest)", "ElderShell.Diagnostics.RestartQuest(quest)",
-          "ElderShell.Diagnostics.RestartQuest(quest, True)"}) {
+          "ElderShell.Diagnostics.RestartQuest(quest, True)", "ElderShell.Diagnostics.InspectPackage(package)",
+          "ElderShell.Diagnostics.SetPackageInterruptFlag(package, \"RandomConversations\", True)",
+          "ElderShell.Diagnostics.RestorePackageInterruptFlags(package)"}) {
         EvaluationStatement statement;
         statement.resultType = "String";
         statement.expression = expression;
-        write(request.source,
-              EvaluationSource(statement,
-                               {{"ElderShellRoot", "ElderShell"}, {"Quest", "quest"}, {"ObjectReference", "target"}},
-                               "ServiceTest"));
+        write(request.source, EvaluationSource(statement,
+                                               {{"ElderShellRoot", "ElderShell"},
+                                                {"Quest", "quest"},
+                                                {"ObjectReference", "target"},
+                                                {"Package", "package"}},
+                                               "ServiceTest"));
         auto report = compiler.Compile(request);
         INFO(report.diagnostics);
         REQUIRE(report.succeeded);
         FragmentPlan fragment;
-        fragment.fields = {
-            {"ElderShellRoot", "ElderShell"}, {"Quest", "quest"}, {"ObjectReference", "target"}, {"String", "output"}};
+        fragment.fields = {{"ElderShellRoot", "ElderShell"},
+                           {"Quest", "quest"},
+                           {"ObjectReference", "target"},
+                           {"Package", "package"},
+                           {"String", "output"}};
         fragment.body = "output = " + std::string(expression) + "\n";
         write(request.source, FragmentSource(fragment, "ServiceTest"));
         report = compiler.Compile(request);

@@ -44,7 +44,14 @@ Other scripts still require all arguments. Completion reads metadata without
 executing getters. Reassignment, unset, instance naming and fragment shadowing
 reject the reserved root name, case-insensitively.
 
-Engine natives are registered with tasklet calls disabled. `InspectQuest` reads
+Engine natives are registered with tasklet calls disabled. Package diagnostics
+read and change `PACKAGE_DATA::foBehaviorFlags` only on the main thread. Named
+interrupt flags have compile-time checks against CommonLib's masks. The runtime
+tracks the original value and changed-bit mask per package; explicit restoration
+and pre-load/new-game cleanup restore only those bits. No package change is
+serialized or replayed. These are shared record edits, not actor package overrides.
+
+`InspectQuest` reads
 bounded runtime data without calling script getters. `PrepareRestart` validates a
 stopped, non-event quest and performs only an explicitly requested `alreadyRun`
 change, marking quest flags for saving. The Papyrus `RestartQuest` body calls the

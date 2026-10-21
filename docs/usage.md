@@ -143,6 +143,35 @@ startup can run quest scripts and stages. Event-driven quests and the service
 quest are rejected. Make a separate save before recovery; a failed start does
 not undo the requested flag change or any script effects.
 
+Inspect and temporarily change a package's interruption flags:
+
+```papyrus
+var currentPackage = actor.GetCurrentPackage()
+ElderShell.Diagnostics.InspectPackage(currentPackage)
+ElderShell.Diagnostics.SetPackageInterruptFlag(currentPackage, "RandomConversations", True)
+ElderShell.Diagnostics.SetPackageInterruptFlag(currentPackage, "AllowIdleChatter", True)
+actor.EvaluatePackage()
+```
+
+Run these separately in single-line mode. Names are case-insensitive;
+`InspectPackage` lists all supported flags. The package record is shared: changes
+affect every actor using it, rather than only the actor used to obtain it.
+Changing flags does not force a scene or bypass its other conditions.
+
+Restore the bits changed by Elder Shell, then reevaluate affected actors:
+
+```papyrus
+ElderShell.Diagnostics.RestorePackageInterruptFlags(currentPackage)
+actor.EvaluatePackage()
+```
+
+Restoration preserves unrelated bits, including changes made by other mods.
+The original values are captured before the first edit; repeated edits retain
+that baseline. Overrides are not saved and are restored before loading a save
+(even if that load fails), when starting a new game, or by restarting Skyrim.
+They survive `clearvars`, so retain the package reference or obtain it again to
+restore explicitly. At most 128 packages can have tracked overrides at once.
+
 In multiline mode, store returned strings in variables and inspect them afterward.
 `clearvars` and loading a save clear session variables; `ElderShell` remains available
 from its real quest attachment. The binding cannot be reassigned, shadowed or unset.

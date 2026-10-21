@@ -11,19 +11,32 @@ namespace {
         services::ApplyDefaults(services::ConsoleScript, execute);
         FunctionDeclaration restart{"RestartQuest", "String", {{"Quest", "target"}, {"Bool", "clearAlreadyRun"}}};
         services::ApplyDefaults(services::DiagnosticsScript, restart);
-        return {
-            {{services::RootScript,
-              "Quest",
-              {},
-              {{"Console", services::ConsoleScript, true, false},
-               {"Diagnostics", services::DiagnosticsScript, true, false}}},
-             {services::ConsoleScript, "Quest", {execute}, {}},
-             {services::DiagnosticsScript, "Quest", {restart, {"InspectQuest", "String", {{"Quest", "target"}}}}, {}},
-             {"Quest", "Form", {}, {}},
-             {"ObjectReference", "Form", {}, {}},
-             {"Form", {}, {}, {}}},
-            {{services::RootScript, "ElderShell"}, {"Quest", "quest"}, {"ObjectReference", "actor"}},
-            {}};
+        FunctionDeclaration setFlag{
+            "SetPackageInterruptFlag", "String", {{"Package", "arg1"}, {"String", "arg2"}, {"Bool", "arg3"}}};
+        services::ApplyDefaults(services::DiagnosticsScript, setFlag);
+        return {{{services::RootScript,
+                  "Quest",
+                  {},
+                  {{"Console", services::ConsoleScript, true, false},
+                   {"Diagnostics", services::DiagnosticsScript, true, false}}},
+                 {services::ConsoleScript, "Quest", {execute}, {}},
+                 {services::DiagnosticsScript,
+                  "Quest",
+                  {restart,
+                   {"InspectQuest", "String", {{"Quest", "target"}}},
+                   setFlag,
+                   {"InspectPackage", "String", {{"Package", "target"}}},
+                   {"RestorePackageInterruptFlags", "String", {{"Package", "target"}}}},
+                  {}},
+                 {"Package", "Form", {}, {}},
+                 {"Quest", "Form", {}, {}},
+                 {"ObjectReference", "Form", {}, {}},
+                 {"Form", {}, {}, {}}},
+                {{services::RootScript, "ElderShell"},
+                 {"Quest", "quest"},
+                 {"ObjectReference", "actor"},
+                 {"Package", "targetPackage"}},
+                {}};
     }
 }
 
@@ -53,6 +66,21 @@ TEST_CASE("Service objects use ordinary typed member access and source defaults"
     CHECK(hint.parameter.find("optional") != std::string::npos);
     const auto declaration = DeclarationSource(environment.scripts[1]);
     CHECK(declaration.find("ObjectReference target = None") != std::string::npos);
+}
+
+TEST_CASE("Package diagnostics expose typed calls and parameter hints") {
+    const auto environment = Environment();
+    CHECK(ExpressionTypes("ElderShell.Diagnostics.InspectPackage(targetPackage)", environment).Result() == "String");
+    CHECK(ExpressionTypes("ElderShell.Diagnostics.RestorePackageInterruptFlags(targetPackage)", environment).Result() ==
+          "String");
+    CHECK(
+        ExpressionTypes("ElderShell.Diagnostics.SetPackageInterruptFlag(targetPackage, \"RandomConversations\", True)",
+                        environment)
+            .Result() == "String");
+    const std::string call = "ElderShell.Diagnostics.SetPackageInterruptFlag(targetPackage, ";
+    const auto hint = Complete(call, call.size(), environment);
+    CHECK(hint.signature.find("String flag") != std::string::npos);
+    CHECK(hint.signature.find("Bool enabled") != std::string::npos);
 }
 
 TEST_CASE("The built-in binding cannot be unset, reassigned or shadowed") {

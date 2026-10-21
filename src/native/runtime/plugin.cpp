@@ -3,6 +3,7 @@
 #include "Compatibility.h"
 #include "ModInfo.h"
 #include "Services.h"
+#include "PackageFlags.h"
 
 #include <spdlog/sinks/basic_file_sink.h>
 
@@ -19,12 +20,14 @@ SKSEPluginInfo(.Version = REL::Version{mod::info::VersionMajor, mod::info::Versi
                 elder_shell::RegisterMenu();
                 break;
             case SKSE::MessagingInterface::kPreLoadGame:
+                elder_shell::RestorePackageFlagOverrides();
                 elder_shell::SessionChanged(false);
                 break;
             case SKSE::MessagingInterface::kPostLoadGame:
                 elder_shell::SessionChanged(message->data != nullptr);
                 break;
             case SKSE::MessagingInterface::kNewGame:
+                elder_shell::RestorePackageFlagOverrides();
                 elder_shell::SessionChanged(true);
                 break;
             default:

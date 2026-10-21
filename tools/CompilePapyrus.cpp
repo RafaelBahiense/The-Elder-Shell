@@ -34,6 +34,7 @@ int main(int argc, char** argv) {
         Write(imports / "Form.psc", "Scriptname Form\n");
         Write(imports / "Quest.psc", "Scriptname Quest extends Form\nBool Function Start() Native\n");
         Write(imports / "ObjectReference.psc", "Scriptname ObjectReference extends Form\n");
+        Write(imports / "Package.psc", "Scriptname Package extends Form\n");
         const auto flags = imports / "Services.flg";
         Write(flags, "Flag Hidden 0 { Script Property }\n");
         const elder_shell::EmbeddedCompiler compiler;

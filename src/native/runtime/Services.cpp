@@ -1,5 +1,6 @@
 #include "Services.h"
 #include "GameConsole.h"
+#include "PackageFlags.h"
 #include "shell/Services.h"
 
 namespace elder_shell {
@@ -105,6 +106,7 @@ namespace elder_shell {
         vm->RegisterFunction("Execute", services::ConsoleScript, ExecuteConsole);
         vm->RegisterFunction("InspectQuest", services::DiagnosticsScript, InspectQuest);
         vm->RegisterFunction("PrepareRestart", services::DiagnosticsScript, PrepareRestart);
+        RegisterPackageServices(vm);
         return true;
     }
 }
