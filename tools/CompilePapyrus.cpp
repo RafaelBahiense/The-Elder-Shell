@@ -32,9 +32,13 @@ int main(int argc, char** argv) {
         std::filesystem::create_directories(scripts);
         // Signature-only compiler inputs. These are never packaged as scripts.
         Write(imports / "Form.psc", "Scriptname Form\n");
-        Write(imports / "Quest.psc", "Scriptname Quest extends Form\nBool Function Start() Native\n");
+        Write(imports / "Quest.psc",
+              "Scriptname Quest extends Form\nBool Function Start() Native\nFunction Stop() Native\n");
+        Write(imports / "Alias.psc", "Scriptname Alias\n");
+        Write(imports / "ReferenceAlias.psc", "Scriptname ReferenceAlias extends Alias\nFunction Clear() Native\n");
         Write(imports / "ObjectReference.psc", "Scriptname ObjectReference extends Form\n");
         Write(imports / "Actor.psc", "Scriptname Actor extends ObjectReference\n");
+        Write(imports / "Faction.psc", "Scriptname Faction extends Form\n");
         Write(imports / "Package.psc", "Scriptname Package extends Form\n");
         const auto flags = imports / "Services.flg";
         Write(flags, "Flag Hidden 0 { Script Property }\n");

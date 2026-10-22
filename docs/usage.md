@@ -202,3 +202,36 @@ Generated scripts under `Scripts/` are retained for saves.
 Use **Up/Down** for history.
 Output supports mouse selection and **Ctrl+C**;
 **Ctrl+A** selects the transcript when it has focus.
+
+## Actor cleanup by plugin
+
+Inspect an NPC, then remove matching data with:
+
+```papyrus
+ElderShell.Diagnostics.InspectPluginActor(npc, "Example.esp")
+ElderShell.Diagnostics.CleanupPluginActor(npc, "Example.esp")
+```
+
+Each category also has `InspectPlugin<Category>` and `RemovePlugin<Category>`
+functions taking the same Actor and plugin filename:
+
+| Category | Cleanup |
+| --- | --- |
+| Quests | Request Stop for plugin-defined quests whose aliases hold the actor |
+| Aliases | Clear the actor's reference aliases on those quests |
+| Scripts | Unbind indexed script classes directly attached to the actor |
+| Packages | End matching interrupt packages and reevaluate AI |
+| Equipment | Unequip matching items and spells |
+| Effects | Request dispel for matching active effects |
+| Spells | Remove matching spells through the engine |
+| Inventory | Delete matching items or enchanted instances |
+| Factions | Remove matching memberships and reference-level faction data |
+
+The full cleanup calls these functions in table order and returns a final inspection.
+Quest stops affect the entire quest. Removal has no transaction or general undo;
+reports distinguish requests, removals and remaining data. Player cleanup is rejected.
+
+Matching uses a form's defining plugin, including related enchantments and magic
+effects. Script matching requires a generated declaration index. Shared base records,
+running script calls and external registrations are not erased. See
+[cleanup scope and script indexes](vm-integration.md#actor-cleanup) for details.

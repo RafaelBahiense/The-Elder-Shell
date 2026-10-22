@@ -65,3 +65,43 @@ Variables retain their declared or inferred type even when a callback returns
 `None`. Inference and completion can update only the binding owned by their ticket.
 Save loads invalidate requests; late callbacks cannot restore removed variables
 or release another evaluation's gate. Requests are never replayed automatically.
+
+## Actor cleanup
+
+Actor cleanup services run on the game thread. Native collectors copy alias and
+script references under their respective locks, then release the locks before VM
+calls. Papyrus wrappers stop quests and clear real ReferenceAlias objects through
+normal engine APIs. Each category refuses mutation when its selection exceeds
+1,024 entries; other categories can still proceed.
+
+Ownership means the defining plugin (`GetFile(0)`), not the latest override or the
+mod that caused a runtime change. Magic matches include the spell, base effect,
+source item or enchantment. Inventory cleanup deletes matching base items, or only
+matching extra-enchantment instances when the base item is unrelated.
+
+Faction cleanup masks authored memberships on the selected actor without changing
+shared NPC or template records. Package cleanup ends matching interrupt packages;
+it does not rewrite base package lists. Engine spell removals can leave authored
+spells present. Effects may remain until deferred teardown or be reapplied by a
+controller. Inspect again to check the resulting state.
+
+### Script declaration index
+
+Generate an index using the plugin generator CLI:
+
+```text
+dotnet TheElderShell.Plugin.dll inspect-scripts <plugin file> <output directory>
+```
+
+Install the resulting `<plugin filename>.tsv` under
+`SKSE/Plugins/TheElderShell/PluginScripts/`. The Mutagen reader collects script
+names from the plugin's own records and quest aliases. The runtime checks the
+plugin filename and SHA-256 before using exact, case-insensitive class matches.
+Indexes must be regenerated after the plugin changes.
+
+An index establishes a declaration match, not the origin of a PEX or the reason a
+script was attached. Missing, invalid or stale indexes leave scripts unattributed
+and retained. Unbinding removes direct actor bindings; it does not terminate
+running or suspended calls, erase event registrations, or delete quest/alias script
+instances. Cleanup does not edit external files, controller arrays or arbitrary
+script properties. Such state can cause removed actor data to return.

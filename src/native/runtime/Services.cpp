@@ -1,6 +1,8 @@
 #include "Services.h"
 #include "GameConsole.h"
 #include "PackageFlags.h"
+#include "FactionCleanup.h"
+#include "PluginActorCleanup.h"
 #include "shell/Services.h"
 #include "RE/E/ExtraCanTalkToPlayer.h"
 
@@ -137,6 +139,8 @@ namespace elder_shell {
         vm->RegisterFunction("InspectActorDialogue", services::DiagnosticsScript, InspectActorDialogue);
         vm->RegisterFunction("PrepareRestart", services::DiagnosticsScript, PrepareRestart);
         RegisterPackageServices(vm);
+        RegisterFactionCleanupServices(vm);
+        RegisterPluginActorCleanupServices(vm);
         return true;
     }
 }

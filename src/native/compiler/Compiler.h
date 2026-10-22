@@ -7,6 +7,8 @@
 #include <vector>
 
 namespace elder_shell {
+    std::string ContentDigest(std::string_view bytes);
+
     struct CompilerInput {
         std::string source;
         std::vector<std::pair<std::string, std::string>> declarations;

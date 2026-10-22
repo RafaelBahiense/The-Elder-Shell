@@ -134,6 +134,10 @@ namespace elder_shell {
 
     }
 
+    std::string ContentDigest(std::string_view bytes) {
+        return Digest(bytes);
+    }
+
     CompilerResult CompileEvaluation(const CompilerInput& input) {
         try {
             const auto tools = PluginDirectory() / mod::info::BinaryName;

@@ -14,6 +14,11 @@ namespace {
         FunctionDeclaration setFlag{
             "SetPackageInterruptFlag", "String", {{"Package", "arg1"}, {"String", "arg2"}, {"Bool", "arg3"}}};
         services::ApplyDefaults(services::DiagnosticsScript, setFlag);
+        FunctionDeclaration cleanup{
+            "CleanupPluginFactions",
+            "String",
+            {{"Actor", "target"}, {"String", "plugin"}, {"Faction", "registration"}, {"Bool", "apply"}}};
+        services::ApplyDefaults(services::DiagnosticsScript, cleanup);
         return {{{services::RootScript,
                   "Quest",
                   {},
@@ -23,6 +28,10 @@ namespace {
                  {services::DiagnosticsScript,
                   "Quest",
                   {restart,
+                   cleanup,
+                   {"RestorePluginFactions",
+                    "String",
+                    {{"Actor", "target"}, {"String", "plugin"}, {"Faction", "registration"}}},
                    {"InspectQuest", "String", {{"Quest", "target"}}},
                    setFlag,
                    {"InspectPackage", "String", {{"Package", "target"}}},
@@ -31,11 +40,15 @@ namespace {
                  {"Package", "Form", {}, {}},
                  {"Quest", "Form", {}, {}},
                  {"ObjectReference", "Form", {}, {}},
+                 {"Actor", "ObjectReference", {}, {}},
+                 {"Faction", "Form", {}, {}},
                  {"Form", {}, {}, {}}},
                 {{services::RootScript, "ElderShell"},
                  {"Quest", "quest"},
                  {"ObjectReference", "actor"},
-                 {"Package", "targetPackage"}},
+                 {"Package", "targetPackage"},
+                 {"Actor", "subject"},
+                 {"Faction", "registration"}},
                 {}};
     }
 }
@@ -81,6 +94,21 @@ TEST_CASE("Package diagnostics expose typed calls and parameter hints") {
     const auto hint = Complete(call, call.size(), environment);
     CHECK(hint.signature.find("String flag") != std::string::npos);
     CHECK(hint.signature.find("Bool enabled") != std::string::npos);
+}
+
+TEST_CASE("Faction cleanup metadata requires a registration guard and defaults to preview") {
+    const auto environment = Environment();
+    CHECK(ExpressionTypes("ElderShell.Diagnostics.CleanupPluginFactions(subject, \"Example.esm\", registration)",
+                          environment)
+              .Result() == "String");
+    CHECK(ExpressionTypes("ElderShell.Diagnostics.CleanupPluginFactions(subject, \"Example.esm\", registration, True)",
+                          environment)
+              .Result() == "String");
+    CHECK(ExpressionTypes("ElderShell.Diagnostics.RestorePluginFactions(subject, \"Example.esm\", registration)",
+                          environment)
+              .Result() == "String");
+    CHECK_THROWS(ExpressionTypes("ElderShell.Diagnostics.CleanupPluginFactions(subject, \"Example.esm\")", environment)
+                     .Result());
 }
 
 TEST_CASE("The built-in binding cannot be unset, reassigned or shadowed") {

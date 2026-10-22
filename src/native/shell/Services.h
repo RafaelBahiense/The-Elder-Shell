@@ -14,6 +14,14 @@ namespace elder_shell::services {
     // VM signatures do not expose source defaults. These defaults belong to
     // our packaged scripts; all other signature data still comes from the VM.
     inline void ApplyDefaults(std::string_view script, FunctionDeclaration& function) {
+        if (Equal(script, DiagnosticsScript) && function.parameters.size() == 2 &&
+            Equal(function.parameters[0].type, "Actor") && Equal(function.parameters[1].type, "String")) {
+            function.parameters[0].name = "target";
+            function.parameters[1].name = "plugin";
+        }
+        if (Equal(script, DiagnosticsScript) && Equal(function.name, "CleanupPluginFactions") &&
+            function.parameters.size() == 4 && Equal(function.parameters[3].type, "Bool"))
+            function.parameters[3].defaultValue = "False";
         if (Equal(script, ConsoleScript) && Equal(function.name, "Execute") && function.parameters.size() == 2 &&
             Equal(function.parameters[0].type, "String") && Equal(function.parameters[1].type, "ObjectReference")) {
             function.parameters[0].name = "command";

@@ -26,21 +26,43 @@ TEST_CASE("Packaged service scripts support normal compiled property chains in b
     };
     // Standalone fixtures, kept separate from the service asset output.
     write(scratch / "Form.psc", "Scriptname Form\n");
-    write(scratch / "Quest.psc", "Scriptname Quest extends Form\nBool Function Start() Native\n");
+    write(scratch / "Quest.psc",
+          "Scriptname Quest extends Form\nBool Function Start() Native\nFunction Stop() Native\n");
+    write(scratch / "Alias.psc", "Scriptname Alias\n");
+    write(scratch / "ReferenceAlias.psc", "Scriptname ReferenceAlias extends Alias\nFunction Clear() Native\n");
     write(scratch / "ObjectReference.psc", "Scriptname ObjectReference extends Form\n");
     write(scratch / "Actor.psc", "Scriptname Actor extends ObjectReference\n");
+    write(scratch / "Faction.psc", "Scriptname Faction extends Form\n");
     write(scratch / "Package.psc", "Scriptname Package extends Form\n");
     write(scratch / "ServiceTest.flg", "Flag Hidden 0 { Script Property }\n");
     const EmbeddedCompiler compiler;
     const CompilationRequest request{
         scratch / "ServiceTest.psc", scratch / "ServiceTest.flg", scratch, {scratch, sourceRoot}};
     for (const auto expression :
-         {"ElderShell.Console.Execute(\"help\")", "ElderShell.Console.Execute(\"getav health\", target)",
-          "ElderShell.Diagnostics.InspectQuest(quest)", "ElderShell.Diagnostics.InspectActorDialogue(subject)",
-          "ElderShell.Diagnostics.RestartQuest(quest)", "ElderShell.Diagnostics.RestartQuest(quest, True)",
+         {"ElderShell.Console.Execute(\"help\")",
+          "ElderShell.Console.Execute(\"getav health\", target)",
+          "ElderShell.Diagnostics.InspectQuest(quest)",
+          "ElderShell.Diagnostics.InspectActorDialogue(subject)",
+          "ElderShell.Diagnostics.RestartQuest(quest)",
+          "ElderShell.Diagnostics.RestartQuest(quest, True)",
           "ElderShell.Diagnostics.InspectPackage(package)",
           "ElderShell.Diagnostics.SetPackageInterruptFlag(package, \"RandomConversations\", True)",
-          "ElderShell.Diagnostics.RestorePackageInterruptFlags(package)"}) {
+          "ElderShell.Diagnostics.RestorePackageInterruptFlags(package)",
+          "ElderShell.Diagnostics.CleanupPluginFactions(subject, \"Example.esm\", registration)",
+          "ElderShell.Diagnostics.CleanupPluginFactions(subject, \"Example.esm\", registration, True)",
+          "ElderShell.Diagnostics.RestorePluginFactions(subject, \"Example.esm\", registration)",
+          "ElderShell.Diagnostics.InspectPluginActor(subject, \"Example.esm\")",
+          "ElderShell.Diagnostics.CleanupPluginActor(subject, \"Example.esm\")",
+          "ElderShell.Diagnostics.InspectPluginFactions(subject, \"Example.esm\")",
+          "ElderShell.Diagnostics.RemovePluginFactions(subject, \"Example.esm\")",
+          "ElderShell.Diagnostics.RemovePluginQuests(subject, \"Example.esm\")",
+          "ElderShell.Diagnostics.RemovePluginAliases(subject, \"Example.esm\")",
+          "ElderShell.Diagnostics.RemovePluginScripts(subject, \"Example.esm\")",
+          "ElderShell.Diagnostics.RemovePluginPackages(subject, \"Example.esm\")",
+          "ElderShell.Diagnostics.RemovePluginEquipment(subject, \"Example.esm\")",
+          "ElderShell.Diagnostics.RemovePluginEffects(subject, \"Example.esm\")",
+          "ElderShell.Diagnostics.RemovePluginSpells(subject, \"Example.esm\")",
+          "ElderShell.Diagnostics.RemovePluginInventory(subject, \"Example.esm\")"}) {
         EvaluationStatement statement;
         statement.resultType = "String";
         statement.expression = expression;
@@ -49,21 +71,34 @@ TEST_CASE("Packaged service scripts support normal compiled property chains in b
                                                 {"Quest", "quest"},
                                                 {"ObjectReference", "target"},
                                                 {"Actor", "subject"},
+                                                {"Faction", "registration"},
                                                 {"Package", "package"}},
                                                "ServiceTest"));
         auto report = compiler.Compile(request);
         INFO(report.diagnostics);
         REQUIRE(report.succeeded);
         FragmentPlan fragment;
-        fragment.fields = {{"ElderShellRoot", "ElderShell"}, {"Quest", "quest"},
-                           {"ObjectReference", "target"},    {"Actor", "subject"},
-                           {"Package", "package"},           {"String", "output"}};
+        fragment.fields = {{"ElderShellRoot", "ElderShell"},
+                           {"Quest", "quest"},
+                           {"ObjectReference", "target"},
+                           {"Actor", "subject"},
+                           {"Faction", "registration"},
+                           {"Package", "package"},
+                           {"String", "output"}};
         fragment.body = "output = " + std::string(expression) + "\n";
         write(request.source, FragmentSource(fragment, "ServiceTest"));
         report = compiler.Compile(request);
         INFO(report.diagnostics);
         REQUIRE(report.succeeded);
     }
+    EvaluationStatement invalid;
+    invalid.resultType = "String";
+    invalid.expression = "ElderShell.Diagnostics.CleanupPluginFactions(quest, \"Example.esm\", registration)";
+    write(request.source,
+          EvaluationSource(invalid, {{"ElderShellRoot", "ElderShell"}, {"Quest", "quest"}, {"Faction", "registration"}},
+                           "ServiceTest"));
+    const auto invalidReport = compiler.Compile(request);
+    CHECK_FALSE(invalidReport.succeeded);
 }
 
 namespace {

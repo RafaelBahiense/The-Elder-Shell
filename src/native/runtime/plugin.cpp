@@ -4,6 +4,7 @@
 #include "ModInfo.h"
 #include "Services.h"
 #include "PackageFlags.h"
+#include "FactionCleanup.h"
 
 #include <spdlog/sinks/basic_file_sink.h>
 
@@ -20,6 +21,7 @@ SKSEPluginInfo(.Version = REL::Version{mod::info::VersionMajor, mod::info::Versi
                 elder_shell::RegisterMenu();
                 break;
             case SKSE::MessagingInterface::kPreLoadGame:
+                elder_shell::ClearFactionCleanupSnapshots();
                 elder_shell::RestorePackageFlagOverrides();
                 elder_shell::SessionChanged(false);
                 break;
@@ -27,6 +29,7 @@ SKSEPluginInfo(.Version = REL::Version{mod::info::VersionMajor, mod::info::Versi
                 elder_shell::SessionChanged(message->data != nullptr);
                 break;
             case SKSE::MessagingInterface::kNewGame:
+                elder_shell::ClearFactionCleanupSnapshots();
                 elder_shell::RestorePackageFlagOverrides();
                 elder_shell::SessionChanged(true);
                 break;
