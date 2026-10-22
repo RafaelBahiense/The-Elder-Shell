@@ -71,7 +71,7 @@ namespace elder_shell {
                              RE::TESFaction* registration, std::size_t count) {
             if (!self || self != ServiceQuest() || !actor || !plugin || !registration || !Owned(registration, plugin))
                 return "Provide an Actor, a loaded plugin filename and its registration Faction through "
-                       "ElderShell.Diagnostics.";
+                       "ElderShell.Actors.";
             if (!actor->GetActorBase())
                 return "Actor base is unavailable; no changes made.";
             if (const auto* extra = actor->extraList.GetByType<RE::ExtraFactionChanges>()) {
@@ -209,7 +209,7 @@ namespace elder_shell {
     }
 
     void RegisterFactionCleanupServices(RE::BSScript::IVirtualMachine* vm) {
-        vm->RegisterFunction("CleanupPluginFactions", services::DiagnosticsScript, CleanupPluginFactions);
-        vm->RegisterFunction("RestorePluginFactions", services::DiagnosticsScript, RestorePluginFactions);
+        vm->RegisterFunction("CleanupPluginFactions", services::ActorsScript, CleanupPluginFactions);
+        vm->RegisterFunction("RestorePluginFactions", services::ActorsScript, RestorePluginFactions);
     }
 }

@@ -24,7 +24,7 @@ public sealed class ServicePluginTests
             Assert.Empty(quest.Aliases);
             Assert.Empty(quest.Stages);
             var adapter = Assert.IsType<IQuestAdapterGetter>(quest.VirtualMachineAdapter, exactMatch: false);
-            Assert.Equal(["ElderShellRoot", "ElderShellConsole", "ElderShellDiagnostics"],
+            Assert.Equal(["ElderShellRoot", "ElderShellConsole", "ElderShellSelection", "ElderShellForms", "ElderShellActors", "ElderShellAI", "ElderShellQuests", "ElderShellScripts"],
                 adapter.Scripts.Select(script => script.Name));
             Assert.All(adapter.Scripts, script => Assert.Empty(script.Properties));
         }

@@ -31,7 +31,7 @@ It does not change release flags or analyze dependencies.
 | `SHA256SUMS.txt` | Archive checksums |
 
 The installable ZIP contains `SKSE/Plugins/TheElderShell.dll`, the ESL-flagged
-`TheElderShell.esp`, three service PEX files under `Scripts/`, their sources under
+`TheElderShell.esp`, service PEX files under `Scripts/`, their sources under
 `Source/Scripts/`, and license notices under `docs/TheElderShell/`, including
 Caprica (MIT) and Boost (BSL). Enable the ESP when installing.
 CMake's `service_assets` target generates the ESP from `src/plugin/` using Mutagen

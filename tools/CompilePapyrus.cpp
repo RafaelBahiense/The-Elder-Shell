@@ -43,14 +43,23 @@ int main(int argc, char** argv) {
         const auto flags = imports / "Services.flg";
         Write(flags, "Flag Hidden 0 { Script Property }\n");
         const elder_shell::EmbeddedCompiler compiler;
-        for (const auto script : {elder_shell::services::RootScript, elder_shell::services::ConsoleScript,
-                                  elder_shell::services::DiagnosticsScript}) {
+        for (const auto script : elder_shell::services::Scripts) {
             const auto filename = std::string(script);
             const auto result = compiler.Compile({source / (filename + ".psc"), flags, scripts, {imports, source}});
             if (!result.succeeded)
                 throw std::runtime_error(filename + ": " + result.diagnostics);
             const auto pex = scripts / (filename + ".pex");
             Write(pex, elder_shell::NormalizePexMetadata(Read(pex)));
+        }
+        // This directory belongs to the service asset builder. Keep renamed or
+        // removed services out of subsequent packages from an existing build.
+        for (const auto& entry : std::filesystem::directory_iterator(scripts)) {
+            if (!entry.is_regular_file() || entry.path().extension() != ".pex")
+                continue;
+            const auto name = entry.path().stem().string();
+            if (name.starts_with("ElderShell") &&
+                std::ranges::none_of(elder_shell::services::Scripts, [&](const auto script) { return name == script; }))
+                std::filesystem::remove(entry.path());
         }
         std::cout << "Compiled Elder Shell service scripts.\n";
         return 0;

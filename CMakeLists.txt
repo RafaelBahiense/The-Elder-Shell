@@ -83,10 +83,11 @@ if(WIN32)
   target_link_libraries(compile_papyrus PRIVATE caprica_embedded)
   target_compile_options(compile_papyrus PRIVATE /W4 /WX /utf-8)
   set(SERVICE_OUTPUTS)
-  foreach(SCRIPT ElderShellRoot ElderShellConsole ElderShellDiagnostics)
+  file(GLOB SERVICE_SOURCES CONFIGURE_DEPENDS src/papyrus/*.psc)
+  foreach(SOURCE IN LISTS SERVICE_SOURCES)
+    get_filename_component(SCRIPT "${SOURCE}" NAME_WE)
     list(APPEND SERVICE_OUTPUTS "${PROJECT_BINARY_DIR}/services/Scripts/${SCRIPT}.pex")
   endforeach()
-  file(GLOB SERVICE_SOURCES CONFIGURE_DEPENDS src/papyrus/*.psc)
   add_custom_command(OUTPUT ${SERVICE_OUTPUTS}
     COMMAND compile_papyrus "${PROJECT_SOURCE_DIR}/src/papyrus" "${PROJECT_BINARY_DIR}/services"
     DEPENDS compile_papyrus ${SERVICE_SOURCES}

@@ -39,7 +39,7 @@ Enable **Multiline** for several statements, `If`/`While` blocks and comments.
 Enter inserts a newline; **Ctrl+Enter** runs the fragment.
 
 Use `ElderShell.Console.Execute("help")` for Skyrim console output and
-`ElderShell.Diagnostics.InspectQuest(quest)` for a quest report. `ElderShell` is a
+`ElderShell.Quests.Inspect(quest)` for a quest report. `ElderShell` is a
 read-only binding to real quest-attached service scripts, using ordinary Papyrus syntax.
 
 For other installed scripts, supply all function arguments, including optional ones.

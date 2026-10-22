@@ -5,11 +5,65 @@
 #include "PluginActorCleanup.h"
 #include "shell/Services.h"
 #include "RE/E/ExtraCanTalkToPlayer.h"
+#include "RE/C/CrosshairPickData.h"
 
 namespace elder_shell {
     namespace {
         bool ValidService(RE::TESQuest* self) {
             return self && self == ServiceQuest();
+        }
+
+        RE::TESObjectREFR* GetConsoleReference(RE::TESQuest* self) {
+            return ValidService(self) ? RE::Console::GetSelectedRef().get() : nullptr;
+        }
+
+        RE::Actor* GetConsoleActor(RE::TESQuest* self) {
+            auto* reference = GetConsoleReference(self);
+            return reference ? reference->As<RE::Actor>() : nullptr;
+        }
+
+        RE::TESObjectREFR* GetCrosshairReference(RE::TESQuest* self) {
+            const auto* pick = ValidService(self) ? RE::CrosshairPickData::GetSingleton() : nullptr;
+            return pick ? pick->target.get().get() : nullptr;
+        }
+
+        RE::Actor* GetCrosshairActor(RE::TESQuest* self) {
+            auto* reference = GetCrosshairReference(self);
+            return reference ? reference->As<RE::Actor>() : nullptr;
+        }
+
+        std::string GetPlugin(RE::TESQuest* self, RE::TESForm* form) {
+            const auto* file = ValidService(self) && form ? form->GetFile(0) : nullptr;
+            return file ? file->fileName : "";
+        }
+
+        std::string InspectForm(RE::TESQuest* self, RE::TESForm* form) {
+            if (!ValidService(self) || !form)
+                return "Provide an existing Form and the Elder Shell service.";
+
+            const auto* file = form->GetFile(0);
+            const auto* editor = form->GetFormEditorID();
+            std::string report =
+                std::format("Form: {:08X} {}\nType: {}; editor ID: {}\nDefining plugin: {}", form->GetFormID(),
+                            form->GetName(), static_cast<unsigned>(form->GetFormType()),
+                            editor && *editor ? editor : "<unavailable>", file ? file->fileName : "<runtime>");
+            if (file)
+                report += std::format("\nLocal ID: {:06X}", form->GetLocalFormID());
+
+            report += "\nSource files (engine order):";
+            const auto* sources = form->sourceFiles.array;
+            if (!sources || sources->empty())
+                return report + " NONE";
+            std::size_t count = 0;
+            for (const auto* source : *sources) {
+                if (++count > 256) {
+                    report += "\n[Source listing truncated]";
+                    break;
+                }
+                if (source)
+                    report += std::format("\n{}", source->fileName);
+            }
+            return report;
         }
 
         std::string ExecuteConsole(RE::TESQuest* self, std::string command, RE::TESObjectREFR* target) {
@@ -26,7 +80,7 @@ namespace elder_shell {
 
         std::string InspectActorDialogue(RE::TESQuest* self, RE::Actor* actor) {
             if (!ValidService(self) || !actor)
-                return "Provide an existing Actor and the Elder Shell diagnostics service.";
+                return "Provide an existing Actor and the Elder Shell service.";
 
             const auto* permission = actor->extraList.GetByType<RE::ExtraCanTalkToPlayer>();
             const auto* race = actor->GetRace();
@@ -54,7 +108,7 @@ namespace elder_shell {
 
         std::string InspectQuest(RE::TESQuest* self, RE::TESQuest* quest) {
             if (!ValidService(self) || !quest)
-                return "Provide an existing Quest and the Elder Shell diagnostics service.";
+                return "Provide an existing Quest and the Elder Shell service.";
             const auto state = quest->IsStarting()   ? "Starting"
                                : quest->IsStopping() ? "Stopping"
                                : quest->IsStopped()  ? "Stopped"
@@ -94,7 +148,7 @@ namespace elder_shell {
 
         std::string PrepareRestart(RE::TESQuest* self, RE::TESQuest* quest, bool clearAlreadyRun) {
             if (!ValidService(self) || !quest)
-                return "Provide an existing Quest and the Elder Shell diagnostics service.";
+                return "Provide an existing Quest and the Elder Shell service.";
             const auto error = services::RestartError(
                 quest->IsStopped() && !quest->IsStarting() && !quest->IsStopping() && !quest->promoteTask,
                 quest->eventID != RE::QuestEvent::kNone, quest == ServiceQuest(),
@@ -135,9 +189,15 @@ namespace elder_shell {
         // Ordinary native functions run at the VM's main-thread safe point.
         // Never mark these engine operations callable from tasklets.
         vm->RegisterFunction("Execute", services::ConsoleScript, ExecuteConsole);
-        vm->RegisterFunction("InspectQuest", services::DiagnosticsScript, InspectQuest);
-        vm->RegisterFunction("InspectActorDialogue", services::DiagnosticsScript, InspectActorDialogue);
-        vm->RegisterFunction("PrepareRestart", services::DiagnosticsScript, PrepareRestart);
+        vm->RegisterFunction("GetConsoleReference", services::SelectionScript, GetConsoleReference);
+        vm->RegisterFunction("GetConsoleActor", services::SelectionScript, GetConsoleActor);
+        vm->RegisterFunction("GetCrosshairReference", services::SelectionScript, GetCrosshairReference);
+        vm->RegisterFunction("GetCrosshairActor", services::SelectionScript, GetCrosshairActor);
+        vm->RegisterFunction("Inspect", services::FormsScript, InspectForm);
+        vm->RegisterFunction("GetPlugin", services::FormsScript, GetPlugin);
+        vm->RegisterFunction("Inspect", services::QuestsScript, InspectQuest);
+        vm->RegisterFunction("InspectDialogue", services::ActorsScript, InspectActorDialogue);
+        vm->RegisterFunction("PrepareRestart", services::QuestsScript, PrepareRestart);
         RegisterPackageServices(vm);
         RegisterFactionCleanupServices(vm);
         RegisterPluginActorCleanupServices(vm);

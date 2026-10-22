@@ -26,7 +26,7 @@ namespace elder_shell {
             const auto* plugin = data ? data->LookupModByName(name) : nullptr;
             if (!self || self != ServiceQuest() || !actor || !plugin)
                 throw std::runtime_error(
-                    "Provide an Actor and a loaded plugin filename through ElderShell.Diagnostics.");
+                    "Provide an Actor and a loaded plugin filename through the Elder Shell service.");
             if (actor == RE::PlayerCharacter::GetSingleton())
                 throw std::runtime_error("Player cleanup is not supported; provide an NPC actor.");
             return {actor, plugin};
@@ -575,25 +575,29 @@ namespace elder_shell {
     }
 
     void RegisterPluginActorCleanupServices(RE::BSScript::IVirtualMachine* vm) {
-        constexpr auto script = services::DiagnosticsScript;
-        vm->RegisterFunction("InspectPluginActor", script, InspectPluginActor);
-        vm->RegisterFunction("InspectPluginQuests", script, CategoryService<Category::Quests, false>);
-        vm->RegisterFunction("InspectPluginAliases", script, CategoryService<Category::Aliases, false>);
-        vm->RegisterFunction("CollectPluginActorQuests", script, CollectQuests);
-        vm->RegisterFunction("CollectPluginActorAliases", script, CollectAliases);
-        vm->RegisterFunction("InspectPluginScripts", script, CategoryService<Category::Scripts, false>);
-        vm->RegisterFunction("RemovePluginScripts", script, CategoryService<Category::Scripts, true>);
-        vm->RegisterFunction("InspectPluginPackages", script, CategoryService<Category::Packages, false>);
-        vm->RegisterFunction("RemovePluginPackages", script, CategoryService<Category::Packages, true>);
-        vm->RegisterFunction("InspectPluginEquipment", script, CategoryService<Category::Equipment, false>);
-        vm->RegisterFunction("RemovePluginEquipment", script, CategoryService<Category::Equipment, true>);
-        vm->RegisterFunction("InspectPluginEffects", script, CategoryService<Category::Effects, false>);
-        vm->RegisterFunction("RemovePluginEffects", script, CategoryService<Category::Effects, true>);
-        vm->RegisterFunction("InspectPluginSpells", script, CategoryService<Category::Spells, false>);
-        vm->RegisterFunction("RemovePluginSpells", script, CategoryService<Category::Spells, true>);
-        vm->RegisterFunction("InspectPluginInventory", script, CategoryService<Category::Inventory, false>);
-        vm->RegisterFunction("RemovePluginInventory", script, CategoryService<Category::Inventory, true>);
-        vm->RegisterFunction("InspectPluginFactions", script, CategoryService<Category::Factions, false>);
-        vm->RegisterFunction("RemovePluginFactions", script, CategoryService<Category::Factions, true>);
+        vm->RegisterFunction("InspectPlugin", services::ActorsScript, InspectPluginActor);
+        vm->RegisterFunction("InspectPlugin", services::QuestsScript, CategoryService<Category::Quests, false>);
+        vm->RegisterFunction("InspectPluginAliases", services::QuestsScript, CategoryService<Category::Aliases, false>);
+        vm->RegisterFunction("CollectPluginQuests", services::QuestsScript, CollectQuests);
+        vm->RegisterFunction("CollectPluginAliases", services::QuestsScript, CollectAliases);
+        vm->RegisterFunction("InspectPlugin", services::ScriptsScript, CategoryService<Category::Scripts, false>);
+        vm->RegisterFunction("RemovePlugin", services::ScriptsScript, CategoryService<Category::Scripts, true>);
+        vm->RegisterFunction("InspectPluginPackages", services::AIScript, CategoryService<Category::Packages, false>);
+        vm->RegisterFunction("RemovePluginPackages", services::AIScript, CategoryService<Category::Packages, true>);
+        vm->RegisterFunction("InspectPluginEquipment", services::ActorsScript,
+                             CategoryService<Category::Equipment, false>);
+        vm->RegisterFunction("RemovePluginEquipment", services::ActorsScript,
+                             CategoryService<Category::Equipment, true>);
+        vm->RegisterFunction("InspectPluginEffects", services::ActorsScript, CategoryService<Category::Effects, false>);
+        vm->RegisterFunction("RemovePluginEffects", services::ActorsScript, CategoryService<Category::Effects, true>);
+        vm->RegisterFunction("InspectPluginSpells", services::ActorsScript, CategoryService<Category::Spells, false>);
+        vm->RegisterFunction("RemovePluginSpells", services::ActorsScript, CategoryService<Category::Spells, true>);
+        vm->RegisterFunction("InspectPluginInventory", services::ActorsScript,
+                             CategoryService<Category::Inventory, false>);
+        vm->RegisterFunction("RemovePluginInventory", services::ActorsScript,
+                             CategoryService<Category::Inventory, true>);
+        vm->RegisterFunction("InspectPluginFactions", services::ActorsScript,
+                             CategoryService<Category::Factions, false>);
+        vm->RegisterFunction("RemovePluginFactions", services::ActorsScript, CategoryService<Category::Factions, true>);
     }
 }

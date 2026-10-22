@@ -103,9 +103,33 @@ Large snapshots are truncated; assign an array element to another variable for d
 
 ## Execution and output
 
-`ElderShell` is a read-only shell binding to the packaged service quest. `Console`
-and `Diagnostics` are real typed, read-only Papyrus properties. They support the
-same completion, assignment and multiline execution as other script objects.
+`ElderShell` is a read-only shell binding to the packaged service quest. Its domain
+services support ordinary Papyrus member syntax, completion and multiline execution.
+`Get`, `Inspect` and `Collect` read state; `Set`, `Remove`, `Cleanup`, `Restore` and
+`Restart` explicitly change it.
+
+| Service | Purpose |
+| --- | --- |
+| `Selection` | Get the console selection or crosshair target as a reference or actor |
+| `Forms` | Inspect form identity, defining plugin and engine source files |
+| `Actors` | Inspect dialogue permissions and plugin data; clean actor data |
+| `AI` | Inspect packages, change interruption flags and remove plugin interrupt packages |
+| `Quests` | Inspect and restart quests; inspect or clear plugin aliases and stop matching quests |
+| `Scripts` | Inspect and remove indexed plugin script bindings on an actor |
+| `Console` | Execute Skyrim console commands and capture immediate output |
+
+```papyrus
+var npc = ElderShell.Selection.GetConsoleActor()
+ElderShell.Forms.Inspect(npc)
+ElderShell.Forms.GetPlugin(npc)
+```
+
+Selection also provides `GetConsoleReference()`, `GetCrosshairReference()` and
+`GetCrosshairActor()`. Actor getters return `None` for non-actor targets; all getters
+return `None` when no target exists. Crosshair selection uses the current engine
+pick and can be absent or stale while a menu is open. `Forms.GetPlugin` returns the
+defining filename, or an empty string for a runtime form or `None`. Form inspection
+lists engine source files; editor IDs can be unavailable for some form types.
 
 ```papyrus
 ElderShell.Console.Execute("player.getavinfo health")
@@ -123,7 +147,7 @@ output is truncated. The former `console ...` shortcut has been removed.
 Inspect an actor's dialogue permissions without changing them:
 
 ```papyrus
-ElderShell.Diagnostics.InspectActorDialogue(npc)
+ElderShell.Actors.InspectDialogue(npc)
 ```
 
 The report shows effective dialogue permission, its reference override and race
@@ -133,17 +157,17 @@ quest and alias conditions may still prevent conversation.
 Inspect and explicitly restart a stopped quest:
 
 ```papyrus
-ElderShell.Diagnostics.InspectQuest(quest)
-ElderShell.Diagnostics.RestartQuest(quest)
-ElderShell.Diagnostics.RestartQuest(quest, True)
+ElderShell.Quests.Inspect(quest)
+ElderShell.Quests.Restart(quest)
+ElderShell.Quests.Restart(quest, True)
 ```
 
-`InspectQuest` returns the runtime state, stage, flags, Run Once, `alreadyRun`,
+`Quests.Inspect` returns the runtime state, stage, flags, Run Once, `alreadyRun`,
 story event and bounded alias listing. Reference aliases show their current
 bindings; other alias types are identified without guessing their bindings.
 It does not evaluate quest scripts or diagnose why an alias failed to fill.
 
-`RestartQuest(Quest target, Bool clearAlreadyRun = False)` requires a fully stopped
+`Quests.Restart(Quest target, Bool clearAlreadyRun = False)` requires a fully stopped
 quest. For a Run Once quest with `alreadyRun` set, it requires the explicit `True`
 argument. That clears only `alreadyRun`, marks the quest changed for saving,
 and preserves the authored Run Once flag. The report includes before/after
@@ -157,9 +181,9 @@ Inspect and temporarily change a package's interruption flags:
 
 ```papyrus
 var currentPackage = actor.GetCurrentPackage()
-ElderShell.Diagnostics.InspectPackage(currentPackage)
-ElderShell.Diagnostics.SetPackageInterruptFlag(currentPackage, "RandomConversations", True)
-ElderShell.Diagnostics.SetPackageInterruptFlag(currentPackage, "AllowIdleChatter", True)
+ElderShell.AI.InspectPackage(currentPackage)
+ElderShell.AI.SetPackageInterruptFlag(currentPackage, "RandomConversations", True)
+ElderShell.AI.SetPackageInterruptFlag(currentPackage, "AllowIdleChatter", True)
 actor.EvaluatePackage()
 ```
 
@@ -171,7 +195,7 @@ Changing flags does not force a scene or bypass its other conditions.
 Restore the bits changed by Elder Shell, then reevaluate affected actors:
 
 ```papyrus
-ElderShell.Diagnostics.RestorePackageInterruptFlags(currentPackage)
+ElderShell.AI.RestorePackageInterruptFlags(currentPackage)
 actor.EvaluatePackage()
 ```
 
@@ -208,24 +232,24 @@ Output supports mouse selection and **Ctrl+C**;
 Inspect an NPC, then remove matching data with:
 
 ```papyrus
-ElderShell.Diagnostics.InspectPluginActor(npc, "Example.esp")
-ElderShell.Diagnostics.CleanupPluginActor(npc, "Example.esp")
+ElderShell.Actors.InspectPlugin(npc, "Example.esp")
+ElderShell.Actors.CleanupPlugin(npc, "Example.esp")
 ```
 
-Each category also has `InspectPlugin<Category>` and `RemovePlugin<Category>`
-functions taking the same Actor and plugin filename:
+Category functions take the same Actor and plugin filename. Each `Inspect` function
+is read-only; its corresponding removal function changes the selected data:
 
-| Category | Cleanup |
+| Inspect / remove | Cleanup |
 | --- | --- |
-| Quests | Request Stop for plugin-defined quests whose aliases hold the actor |
-| Aliases | Clear the actor's reference aliases on those quests |
-| Scripts | Unbind indexed script classes directly attached to the actor |
-| Packages | End matching interrupt packages and reevaluate AI |
-| Equipment | Unequip matching items and spells |
-| Effects | Request dispel for matching active effects |
-| Spells | Remove matching spells through the engine |
-| Inventory | Delete matching items or enchanted instances |
-| Factions | Remove matching memberships and reference-level faction data |
+| `Quests.InspectPlugin` / `RemovePlugin` | Request Stop for plugin-defined quests whose aliases hold the actor |
+| `Quests.InspectPluginAliases` / `RemovePluginAliases` | Clear the actor's reference aliases on those quests |
+| `Scripts.InspectPlugin` / `RemovePlugin` | Unbind indexed script classes directly attached to the actor |
+| `AI.InspectPluginPackages` / `RemovePluginPackages` | End matching interrupt packages and reevaluate AI |
+| `Actors.InspectPluginEquipment` / `RemovePluginEquipment` | Unequip matching items and spells |
+| `Actors.InspectPluginEffects` / `RemovePluginEffects` | Request dispel for matching active effects |
+| `Actors.InspectPluginSpells` / `RemovePluginSpells` | Remove matching spells through the engine |
+| `Actors.InspectPluginInventory` / `RemovePluginInventory` | Delete matching items or enchanted instances |
+| `Actors.InspectPluginFactions` / `RemovePluginFactions` | Remove matching memberships and reference-level faction data |
 
 The full cleanup calls these functions in table order and returns a final inspection.
 Quest stops affect the entire quest. Removal has no transaction or general undo;

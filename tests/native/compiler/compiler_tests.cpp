@@ -40,29 +40,35 @@ TEST_CASE("Packaged service scripts support normal compiled property chains in b
         scratch / "ServiceTest.psc", scratch / "ServiceTest.flg", scratch, {scratch, sourceRoot}};
     for (const auto expression :
          {"ElderShell.Console.Execute(\"help\")",
+          "ElderShell.Forms.Inspect(subject)",
+          "ElderShell.Forms.GetPlugin(subject)",
+          "ElderShell.Forms.Inspect(ElderShell.Selection.GetConsoleReference())",
+          "ElderShell.Forms.Inspect(ElderShell.Selection.GetConsoleActor())",
+          "ElderShell.Forms.Inspect(ElderShell.Selection.GetCrosshairReference())",
+          "ElderShell.Forms.Inspect(ElderShell.Selection.GetCrosshairActor())",
           "ElderShell.Console.Execute(\"getav health\", target)",
-          "ElderShell.Diagnostics.InspectQuest(quest)",
-          "ElderShell.Diagnostics.InspectActorDialogue(subject)",
-          "ElderShell.Diagnostics.RestartQuest(quest)",
-          "ElderShell.Diagnostics.RestartQuest(quest, True)",
-          "ElderShell.Diagnostics.InspectPackage(package)",
-          "ElderShell.Diagnostics.SetPackageInterruptFlag(package, \"RandomConversations\", True)",
-          "ElderShell.Diagnostics.RestorePackageInterruptFlags(package)",
-          "ElderShell.Diagnostics.CleanupPluginFactions(subject, \"Example.esm\", registration)",
-          "ElderShell.Diagnostics.CleanupPluginFactions(subject, \"Example.esm\", registration, True)",
-          "ElderShell.Diagnostics.RestorePluginFactions(subject, \"Example.esm\", registration)",
-          "ElderShell.Diagnostics.InspectPluginActor(subject, \"Example.esm\")",
-          "ElderShell.Diagnostics.CleanupPluginActor(subject, \"Example.esm\")",
-          "ElderShell.Diagnostics.InspectPluginFactions(subject, \"Example.esm\")",
-          "ElderShell.Diagnostics.RemovePluginFactions(subject, \"Example.esm\")",
-          "ElderShell.Diagnostics.RemovePluginQuests(subject, \"Example.esm\")",
-          "ElderShell.Diagnostics.RemovePluginAliases(subject, \"Example.esm\")",
-          "ElderShell.Diagnostics.RemovePluginScripts(subject, \"Example.esm\")",
-          "ElderShell.Diagnostics.RemovePluginPackages(subject, \"Example.esm\")",
-          "ElderShell.Diagnostics.RemovePluginEquipment(subject, \"Example.esm\")",
-          "ElderShell.Diagnostics.RemovePluginEffects(subject, \"Example.esm\")",
-          "ElderShell.Diagnostics.RemovePluginSpells(subject, \"Example.esm\")",
-          "ElderShell.Diagnostics.RemovePluginInventory(subject, \"Example.esm\")"}) {
+          "ElderShell.Quests.Inspect(quest)",
+          "ElderShell.Actors.InspectDialogue(subject)",
+          "ElderShell.Quests.Restart(quest)",
+          "ElderShell.Quests.Restart(quest, True)",
+          "ElderShell.AI.InspectPackage(package)",
+          "ElderShell.AI.SetPackageInterruptFlag(package, \"RandomConversations\", True)",
+          "ElderShell.AI.RestorePackageInterruptFlags(package)",
+          "ElderShell.Actors.CleanupPluginFactions(subject, \"Example.esm\", registration)",
+          "ElderShell.Actors.CleanupPluginFactions(subject, \"Example.esm\", registration, True)",
+          "ElderShell.Actors.RestorePluginFactions(subject, \"Example.esm\", registration)",
+          "ElderShell.Actors.InspectPlugin(subject, \"Example.esm\")",
+          "ElderShell.Actors.CleanupPlugin(subject, \"Example.esm\")",
+          "ElderShell.Actors.InspectPluginFactions(subject, \"Example.esm\")",
+          "ElderShell.Actors.RemovePluginFactions(subject, \"Example.esm\")",
+          "ElderShell.Quests.RemovePlugin(subject, \"Example.esm\")",
+          "ElderShell.Quests.RemovePluginAliases(subject, \"Example.esm\")",
+          "ElderShell.Scripts.RemovePlugin(subject, \"Example.esm\")",
+          "ElderShell.AI.RemovePluginPackages(subject, \"Example.esm\")",
+          "ElderShell.Actors.RemovePluginEquipment(subject, \"Example.esm\")",
+          "ElderShell.Actors.RemovePluginEffects(subject, \"Example.esm\")",
+          "ElderShell.Actors.RemovePluginSpells(subject, \"Example.esm\")",
+          "ElderShell.Actors.RemovePluginInventory(subject, \"Example.esm\")"}) {
         EvaluationStatement statement;
         statement.resultType = "String";
         statement.expression = expression;
@@ -91,14 +97,18 @@ TEST_CASE("Packaged service scripts support normal compiled property chains in b
         INFO(report.diagnostics);
         REQUIRE(report.succeeded);
     }
-    EvaluationStatement invalid;
-    invalid.resultType = "String";
-    invalid.expression = "ElderShell.Diagnostics.CleanupPluginFactions(quest, \"Example.esm\", registration)";
-    write(request.source,
-          EvaluationSource(invalid, {{"ElderShellRoot", "ElderShell"}, {"Quest", "quest"}, {"Faction", "registration"}},
-                           "ServiceTest"));
-    const auto invalidReport = compiler.Compile(request);
-    CHECK_FALSE(invalidReport.succeeded);
+    for (const auto expression : {"ElderShell.Actors.CleanupPluginFactions(quest, \"Example.esm\", registration)",
+                                  "ElderShell.Forms.Inspect(7)"}) {
+        EvaluationStatement invalid;
+        invalid.resultType = "String";
+        invalid.expression = expression;
+        write(request.source,
+              EvaluationSource(invalid,
+                               {{"ElderShellRoot", "ElderShell"}, {"Quest", "quest"}, {"Faction", "registration"}},
+                               "ServiceTest"));
+        const auto invalidReport = compiler.Compile(request);
+        CHECK_FALSE(invalidReport.succeeded);
+    }
 }
 
 namespace {

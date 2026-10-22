@@ -36,7 +36,7 @@ namespace elder_shell {
 
         std::string InspectPackage(RE::TESQuest* self, RE::TESPackage* package) {
             if (!Valid(self, package))
-                return "Provide an existing Package and the Elder Shell diagnostics service.";
+                return "Provide an existing Package and the Elder Shell service.";
             const auto flags = ReadFlags(package);
             const auto found = overrides.find(package->GetFormID());
             std::string result = std::format(
@@ -51,7 +51,7 @@ namespace elder_shell {
         std::string SetPackageInterruptFlag(RE::TESQuest* self, RE::TESPackage* package, std::string name,
                                             bool enabled) {
             if (!Valid(self, package))
-                return "Provide an existing Package and the Elder Shell diagnostics service.";
+                return "Provide an existing Package and the Elder Shell service.";
             const auto mask = package_flags::Find(name);
             if (!mask)
                 return "Unknown interrupt flag. InspectPackage lists the supported flag names.";
@@ -70,7 +70,7 @@ namespace elder_shell {
 
         std::string RestorePackageInterruptFlags(RE::TESQuest* self, RE::TESPackage* package) {
             if (!Valid(self, package))
-                return "Provide an existing Package and the Elder Shell diagnostics service.";
+                return "Provide an existing Package and the Elder Shell service.";
             const auto found = overrides.find(package->GetFormID());
             if (found == overrides.end())
                 return "No Elder Shell package override to restore.\n" + InspectPackage(self, package);
@@ -90,8 +90,8 @@ namespace elder_shell {
 
     void RegisterPackageServices(RE::BSScript::IVirtualMachine* vm) {
         // These touch shared engine records; tasklet dispatch must stay disabled.
-        vm->RegisterFunction("InspectPackage", services::DiagnosticsScript, InspectPackage);
-        vm->RegisterFunction("SetPackageInterruptFlag", services::DiagnosticsScript, SetPackageInterruptFlag);
-        vm->RegisterFunction("RestorePackageInterruptFlags", services::DiagnosticsScript, RestorePackageInterruptFlags);
+        vm->RegisterFunction("InspectPackage", services::AIScript, InspectPackage);
+        vm->RegisterFunction("SetPackageInterruptFlag", services::AIScript, SetPackageInterruptFlag);
+        vm->RegisterFunction("RestorePackageInterruptFlags", services::AIScript, RestorePackageInterruptFlags);
     }
 }

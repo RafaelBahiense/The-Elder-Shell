@@ -9,31 +9,50 @@ namespace {
     EvaluationEnvironment Environment() {
         FunctionDeclaration execute{"Execute", "String", {{"String", "command"}, {"ObjectReference", "target"}}};
         services::ApplyDefaults(services::ConsoleScript, execute);
-        FunctionDeclaration restart{"RestartQuest", "String", {{"Quest", "target"}, {"Bool", "clearAlreadyRun"}}};
-        services::ApplyDefaults(services::DiagnosticsScript, restart);
+        FunctionDeclaration restart{"Restart", "String", {{"Quest", "target"}, {"Bool", "clearAlreadyRun"}}};
+        services::ApplyDefaults(services::QuestsScript, restart);
         FunctionDeclaration setFlag{
             "SetPackageInterruptFlag", "String", {{"Package", "arg1"}, {"String", "arg2"}, {"Bool", "arg3"}}};
-        services::ApplyDefaults(services::DiagnosticsScript, setFlag);
+        services::ApplyDefaults(services::AIScript, setFlag);
         FunctionDeclaration cleanup{
             "CleanupPluginFactions",
             "String",
             {{"Actor", "target"}, {"String", "plugin"}, {"Faction", "registration"}, {"Bool", "apply"}}};
-        services::ApplyDefaults(services::DiagnosticsScript, cleanup);
+        services::ApplyDefaults(services::ActorsScript, cleanup);
         return {{{services::RootScript,
                   "Quest",
                   {},
                   {{"Console", services::ConsoleScript, true, false},
-                   {"Diagnostics", services::DiagnosticsScript, true, false}}},
+                   {"Selection", services::SelectionScript, true, false},
+                   {"Forms", services::FormsScript, true, false},
+                   {"Actors", services::ActorsScript, true, false},
+                   {"AI", services::AIScript, true, false},
+                   {"Quests", services::QuestsScript, true, false},
+                   {"Scripts", services::ScriptsScript, true, false}}},
                  {services::ConsoleScript, "Quest", {execute}, {}},
-                 {services::DiagnosticsScript,
+                 {services::SelectionScript,
                   "Quest",
-                  {restart,
-                   cleanup,
+                  {{"GetConsoleActor", "Actor", {}},
+                   {"GetConsoleReference", "ObjectReference", {}},
+                   {"GetCrosshairActor", "Actor", {}},
+                   {"GetCrosshairReference", "ObjectReference", {}}},
+                  {}},
+                 {services::FormsScript,
+                  "Quest",
+                  {{"Inspect", "String", {{"Form", "target"}}}, {"GetPlugin", "String", {{"Form", "target"}}}},
+                  {}},
+                 {services::ActorsScript,
+                  "Quest",
+                  {cleanup,
                    {"RestorePluginFactions",
                     "String",
-                    {{"Actor", "target"}, {"String", "plugin"}, {"Faction", "registration"}}},
-                   {"InspectQuest", "String", {{"Quest", "target"}}},
-                   setFlag,
+                    {{"Actor", "target"}, {"String", "plugin"}, {"Faction", "registration"}}}},
+                  {}},
+                 {services::QuestsScript, "Quest", {restart, {"Inspect", "String", {{"Quest", "target"}}}}, {}},
+                 {services::ScriptsScript, "Quest", {}, {}},
+                 {services::AIScript,
+                  "Quest",
+                  {setFlag,
                    {"InspectPackage", "String", {{"Package", "target"}}},
                    {"RestorePackageInterruptFlags", "String", {{"Package", "target"}}}},
                   {}},
@@ -57,8 +76,8 @@ TEST_CASE("Service objects use ordinary typed member access and source defaults"
     const auto environment = Environment();
     CHECK(ExpressionTypes("ElderShell.Console.Execute(\"sqv ExampleQuest\")", environment).Result() == "String");
     CHECK(ExpressionTypes("eldershell.Console.Execute(\"getav health\", actor)", environment).Result() == "String");
-    CHECK(ExpressionTypes("ElderShell.Diagnostics.RestartQuest(quest)", environment).Result() == "String");
-    CHECK(ExpressionTypes("ElderShell.Diagnostics.RestartQuest(quest, True)", environment).Result() == "String");
+    CHECK(ExpressionTypes("ElderShell.Quests.Restart(quest)", environment).Result() == "String");
+    CHECK(ExpressionTypes("ElderShell.Quests.Restart(quest, True)", environment).Result() == "String");
     CHECK_THROWS(ExpressionTypes("ElderShell.Console.Execute()", environment).Result());
     CHECK_THROWS(ExpressionTypes("ElderShell.Console.Execute(\"help\", actor, actor)", environment).Result());
     CHECK_THROWS(ExpressionTypes("ElderShell.Console", environment).AssignmentType());
@@ -68,11 +87,11 @@ TEST_CASE("Service objects use ordinary typed member access and source defaults"
     CHECK(statement.resultType == "String");
     const auto plan = ResolveFragment(
         "var output = ElderShell.Console.Execute(\"help\")\nIf output != \"\"\n"
-        "output = ElderShell.Diagnostics.InspectQuest(quest)\nEndIf",
+        "output = ElderShell.Quests.Inspect(quest)\nEndIf",
         environment);
     CHECK_FALSE(plan.fields.empty());
     const auto complete = Complete("ElderShell.", 11, environment);
-    CHECK(complete.items.size() == 2);
+    CHECK(complete.items.size() == 7);
     const std::string call = "ElderShell.Console.Execute(\"help\", ";
     const auto hint = Complete(call, call.size(), environment);
     CHECK(hint.signature.find("ObjectReference target = None") != std::string::npos);
@@ -81,16 +100,27 @@ TEST_CASE("Service objects use ordinary typed member access and source defaults"
     CHECK(declaration.find("ObjectReference target = None") != std::string::npos);
 }
 
+TEST_CASE("Selection keeps actor types through chained form inspection") {
+    const auto environment = Environment();
+    CHECK(ExpressionTypes("ElderShell.Selection.GetConsoleActor()", environment).Result() == "Actor");
+    CHECK(ExpressionTypes("ElderShell.Selection.GetConsoleReference()", environment).Result() == "ObjectReference");
+    CHECK(ExpressionTypes("ElderShell.Selection.GetCrosshairActor()", environment).Result() == "Actor");
+    CHECK(ExpressionTypes("ElderShell.Selection.GetCrosshairReference()", environment).Result() == "ObjectReference");
+    CHECK(ExpressionTypes("ElderShell.Forms.Inspect(ElderShell.Selection.GetConsoleActor())", environment).Result() ==
+          "String");
+    CHECK(ExpressionTypes("ElderShell.Forms.GetPlugin(subject)", environment).Result() == "String");
+    CHECK_THROWS(ExpressionTypes("ElderShell.Diagnostics.InspectQuest(quest)", environment).Result());
+}
+
 TEST_CASE("Package diagnostics expose typed calls and parameter hints") {
     const auto environment = Environment();
-    CHECK(ExpressionTypes("ElderShell.Diagnostics.InspectPackage(targetPackage)", environment).Result() == "String");
-    CHECK(ExpressionTypes("ElderShell.Diagnostics.RestorePackageInterruptFlags(targetPackage)", environment).Result() ==
+    CHECK(ExpressionTypes("ElderShell.AI.InspectPackage(targetPackage)", environment).Result() == "String");
+    CHECK(ExpressionTypes("ElderShell.AI.RestorePackageInterruptFlags(targetPackage)", environment).Result() ==
           "String");
-    CHECK(
-        ExpressionTypes("ElderShell.Diagnostics.SetPackageInterruptFlag(targetPackage, \"RandomConversations\", True)",
-                        environment)
-            .Result() == "String");
-    const std::string call = "ElderShell.Diagnostics.SetPackageInterruptFlag(targetPackage, ";
+    CHECK(ExpressionTypes("ElderShell.AI.SetPackageInterruptFlag(targetPackage, \"RandomConversations\", True)",
+                          environment)
+              .Result() == "String");
+    const std::string call = "ElderShell.AI.SetPackageInterruptFlag(targetPackage, ";
     const auto hint = Complete(call, call.size(), environment);
     CHECK(hint.signature.find("String flag") != std::string::npos);
     CHECK(hint.signature.find("Bool enabled") != std::string::npos);
@@ -98,17 +128,17 @@ TEST_CASE("Package diagnostics expose typed calls and parameter hints") {
 
 TEST_CASE("Faction cleanup metadata requires a registration guard and defaults to preview") {
     const auto environment = Environment();
-    CHECK(ExpressionTypes("ElderShell.Diagnostics.CleanupPluginFactions(subject, \"Example.esm\", registration)",
+    CHECK(
+        ExpressionTypes("ElderShell.Actors.CleanupPluginFactions(subject, \"Example.esm\", registration)", environment)
+            .Result() == "String");
+    CHECK(ExpressionTypes("ElderShell.Actors.CleanupPluginFactions(subject, \"Example.esm\", registration, True)",
                           environment)
               .Result() == "String");
-    CHECK(ExpressionTypes("ElderShell.Diagnostics.CleanupPluginFactions(subject, \"Example.esm\", registration, True)",
-                          environment)
-              .Result() == "String");
-    CHECK(ExpressionTypes("ElderShell.Diagnostics.RestorePluginFactions(subject, \"Example.esm\", registration)",
-                          environment)
-              .Result() == "String");
-    CHECK_THROWS(ExpressionTypes("ElderShell.Diagnostics.CleanupPluginFactions(subject, \"Example.esm\")", environment)
-                     .Result());
+    CHECK(
+        ExpressionTypes("ElderShell.Actors.RestorePluginFactions(subject, \"Example.esm\", registration)", environment)
+            .Result() == "String");
+    CHECK_THROWS(
+        ExpressionTypes("ElderShell.Actors.CleanupPluginFactions(subject, \"Example.esm\")", environment).Result());
 }
 
 TEST_CASE("The built-in binding cannot be unset, reassigned or shadowed") {

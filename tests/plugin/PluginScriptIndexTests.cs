@@ -18,8 +18,13 @@ public sealed class PluginScriptIndexTests
             Assert.Equal("sha256\t" + Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(plugin))).ToLowerInvariant(), lines[2]);
             Assert.Contains("script\tElderShellRoot", lines);
             Assert.Contains("script\tElderShellConsole", lines);
-            Assert.Contains("script\tElderShellDiagnostics", lines);
-            Assert.Equal(6, lines.Length);
+            Assert.Contains("script\tElderShellSelection", lines);
+            Assert.Contains("script\tElderShellForms", lines);
+            Assert.Contains("script\tElderShellActors", lines);
+            Assert.Contains("script\tElderShellAI", lines);
+            Assert.Contains("script\tElderShellQuests", lines);
+            Assert.Contains("script\tElderShellScripts", lines);
+            Assert.Equal(11, lines.Length);
         }
         finally
         {

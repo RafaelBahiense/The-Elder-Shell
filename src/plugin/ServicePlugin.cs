@@ -8,7 +8,7 @@ public static class ServicePlugin
 {
     public const uint QuestId = 0x800;
     public const string EditorId = "ElderShellServices";
-    public static readonly string[] Scripts = ["ElderShellRoot", "ElderShellConsole", "ElderShellDiagnostics"];
+    public static readonly string[] Scripts = ["ElderShellRoot", "ElderShellConsole", "ElderShellSelection", "ElderShellForms", "ElderShellActors", "ElderShellAI", "ElderShellQuests", "ElderShellScripts"];
 
     public static string FileName { get; } = ReadFileName();
 

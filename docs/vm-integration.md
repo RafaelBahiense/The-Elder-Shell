@@ -33,7 +33,8 @@ An optional reference applies to that dispatch only. Deferred engine work is not
 ## Built-in services
 
 `TheElderShell.esp` contains one start-enabled, Run Once service quest (local ID
-`0x800`) with `ElderShellRoot`, `ElderShellConsole` and `ElderShellDiagnostics`
+`0x800`) with `ElderShellRoot` and the `Console`, `Selection`, `Forms`, `Actors`,
+`AI`, `Quests` and `Scripts` service scripts
 attached. Root property getters cast their owning quest to the attached service
 types. The shell supplies a retained root object as a normal evaluator input;
 it never creates a service receiver or rewrites member syntax.
@@ -51,10 +52,10 @@ tracks the original value and changed-bit mask per package; explicit restoration
 and pre-load/new-game cleanup restore only those bits. No package change is
 serialized or replayed. These are shared record edits, not actor package overrides.
 
-`InspectQuest` reads
+`Quests.Inspect` reads
 bounded runtime data without calling script getters. `PrepareRestart` validates a
 stopped, non-event quest and performs only an explicitly requested `alreadyRun`
-change, marking quest flags for saving. The Papyrus `RestartQuest` body calls the
+change, marking quest flags for saving. The Papyrus `Quests.Restart` body calls the
 normal latent `Quest.Start()` and returns before/after reports with its Boolean
 result. It neither fabricates alias bindings nor treats dispatch as completion.
 Save loads retain the existing ticket/gate interruption contract; no call is replayed.
