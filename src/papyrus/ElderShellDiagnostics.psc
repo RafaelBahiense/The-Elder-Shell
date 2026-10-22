@@ -1,6 +1,7 @@
 Scriptname ElderShellDiagnostics extends Quest Native Hidden
 
 String Function InspectQuest(Quest target) Native
+String Function InspectActorDialogue(Actor target) Native
 
 String Function InspectPackage(Package target) Native
 String Function SetPackageInterruptFlag(Package target, String flag, Bool enabled) Native

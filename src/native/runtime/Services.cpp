@@ -2,6 +2,7 @@
 #include "GameConsole.h"
 #include "PackageFlags.h"
 #include "shell/Services.h"
+#include "RE/E/ExtraCanTalkToPlayer.h"
 
 namespace elder_shell {
     namespace {
@@ -19,6 +20,34 @@ namespace elder_shell {
             } catch (const std::exception& error) {
                 return error.what();
             }
+        }
+
+        std::string InspectActorDialogue(RE::TESQuest* self, RE::Actor* actor) {
+            if (!ValidService(self) || !actor)
+                return "Provide an existing Actor and the Elder Shell diagnostics service.";
+
+            const auto* permission = actor->extraList.GetByType<RE::ExtraCanTalkToPlayer>();
+            const auto* race = actor->GetRace();
+            const auto describe = [](const RE::TESForm* form) {
+                if (!form)
+                    return std::string("NONE");
+                const auto* file = form->GetFile(0);
+                return std::format("{:08X} {} [{}]", form->GetFormID(), form->GetName(),
+                                   file ? file->fileName : "runtime");
+            };
+            return std::format(
+                "Actor: {}\nCan talk to player: {}; reference override: {}\n"
+                "Race: {}; allows player dialogue: {}\nActivation blocked: {}\n"
+                "Dead: {}; disabled: {}; loaded: {}; in combat: {}; teammate: {}\n"
+                "Unconscious: {}; mounted: {}; sit/sleep state: {}\nScene: {}\nPackage: {}\n"
+                "Read-only snapshot. Dialogue topic, quest and alias conditions can still prevent conversation.",
+                describe(actor), actor->CanTalkToPlayer(),
+                permission ? (permission->talk ? "true" : "false") : "absent (race default)", describe(race),
+                race && race->AllowsPCDialogue(), actor->IsActivationBlocked(), actor->IsDead(), actor->IsDisabled(),
+                actor->Is3DLoaded(), actor->IsInCombat(), actor->IsPlayerTeammate(),
+                actor->AsActorState()->IsUnconscious(), actor->IsOnMount(),
+                static_cast<unsigned>(actor->AsActorState()->GetSitSleepState()), describe(actor->GetCurrentScene()),
+                describe(actor->GetCurrentPackage()));
         }
 
         std::string InspectQuest(RE::TESQuest* self, RE::TESQuest* quest) {
@@ -105,6 +134,7 @@ namespace elder_shell {
         // Never mark these engine operations callable from tasklets.
         vm->RegisterFunction("Execute", services::ConsoleScript, ExecuteConsole);
         vm->RegisterFunction("InspectQuest", services::DiagnosticsScript, InspectQuest);
+        vm->RegisterFunction("InspectActorDialogue", services::DiagnosticsScript, InspectActorDialogue);
         vm->RegisterFunction("PrepareRestart", services::DiagnosticsScript, PrepareRestart);
         RegisterPackageServices(vm);
         return true;

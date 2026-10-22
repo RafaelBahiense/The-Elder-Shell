@@ -20,6 +20,9 @@ namespace elder_shell::services {
             function.parameters[1].name = "target";
             function.parameters[1].defaultValue = "None";
         }
+        if (Equal(script, DiagnosticsScript) && Equal(function.name, "InspectActorDialogue") &&
+            function.parameters.size() == 1 && Equal(function.parameters[0].type, "Actor"))
+            function.parameters[0].name = "target";
         if (Equal(script, DiagnosticsScript) && Equal(function.name, "InspectQuest") &&
             function.parameters.size() == 1 && Equal(function.parameters[0].type, "Quest"))
             function.parameters[0].name = "target";

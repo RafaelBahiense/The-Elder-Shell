@@ -120,6 +120,16 @@ passing a reference targets that command without changing the selection. Delayed
 work and its output are not awaited. No output does not confirm success. Long
 output is truncated. The former `console ...` shortcut has been removed.
 
+Inspect an actor's dialogue permissions without changing them:
+
+```papyrus
+ElderShell.Diagnostics.InspectActorDialogue(npc)
+```
+
+The report shows effective dialogue permission, its reference override and race
+default, activation blocking, actor state, scene and current package. Topic,
+quest and alias conditions may still prevent conversation.
+
 Inspect and explicitly restart a stopped quest:
 
 ```papyrus
