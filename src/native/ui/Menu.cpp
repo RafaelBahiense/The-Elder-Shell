@@ -467,6 +467,26 @@ namespace elder_shell {
         }
     }
 
+    MenuSession CaptureMenuSession() {
+        return {input, otherModeInput, multiline, history, explorerForm, explorerScript, instanceVariable};
+    }
+
+    void RestoreMenuSession(const MenuSession& state) {
+        input = state.input;
+        otherModeInput = state.otherModeInput;
+        multiline = state.multiline;
+        history = state.history;
+        history.ResetNavigation();
+        explorerForm = state.explorerForm;
+        explorerScript = state.explorerScript;
+        instanceVariable = state.instanceVariable;
+        commandCursor = std::char_traits<char>::length(input.data());
+        completion = {};
+        suggestions = {};
+        chosenCompletion.reset();
+        focusCommand = true;
+    }
+
     void RegisterMenu() {
         if (!SKSEMenuFramework::IsInstalled()) {
             SKSE::log::error("{} requires SKSE Menu Framework for its interface", mod::info::DisplayName);

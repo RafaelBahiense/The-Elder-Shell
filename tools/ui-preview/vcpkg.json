@@ -1,0 +1,11 @@
+{
+  "name": "eldershell-ui-preview",
+  "version-string": "1.0.0",
+  "builtin-baseline": "ee12231b20c95013c6638d845d04c91559a1d1ff",
+  "dependencies": [
+    {
+      "name": "imgui",
+      "features": ["win32-binding", "dx11-binding"]
+    }
+  ]
+}

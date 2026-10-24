@@ -58,6 +58,20 @@ $arguments = @('-S',$root,'-B',$build,'-G','Ninja','-DCMAKE_BUILD_TYPE=Release',
     '-DVCPKG_TARGET_TRIPLET=x64-windows-static', "-DVCPKG_OVERLAY_PORTS=$root/cmake/ports",
     "-DCOMMONLIB_SSE_FOLDER=$CommonLib")
 $arguments += @("-DVCPKG_INSTALLED_DIR=$InstalledDependencies", '-DVCPKG_MANIFEST_INSTALL=OFF')
+$cache = Join-Path $build 'CMakeCache.txt'
+if (Test-Path -LiteralPath $cache) {
+    $cachedPaths = @{}
+    foreach ($line in [IO.File]::ReadAllLines($cache)) {
+        if ($line -match '^(CMAKE_HOME_DIRECTORY|CMAKE_CACHEFILE_DIR):INTERNAL=(.*)$') {
+            $cachedPaths[$matches[1]] = [IO.Path]::GetFullPath($matches[2])
+        }
+    }
+    if (($cachedPaths.ContainsKey('CMAKE_HOME_DIRECTORY') -and $cachedPaths.CMAKE_HOME_DIRECTORY -ine $root) -or
+        ($cachedPaths.ContainsKey('CMAKE_CACHEFILE_DIR') -and $cachedPaths.CMAKE_CACHEFILE_DIR -ine $build)) {
+        Write-Host 'The repository or build directory moved; refreshing the CMake cache.'
+        $arguments += '--fresh'
+    }
+}
 Run cmake $arguments
 switch ($Target) {
     'Build' {

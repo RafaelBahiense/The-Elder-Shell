@@ -11,6 +11,7 @@
 | `src/papyrus/` | Quest-owned service scripts and normal latent quest startup |
 | `src/plugin/` | Mutagen definitions generating the service ESP |
 | `tools/CompilePapyrus.cpp` | Build entry point for service PEX compilation |
+| `tools/ui-preview/` | Standalone host, preview backend, fixtures and theme loader |
 | `src/native/PCH.h` | Skyrim/SKSE precompiled headers |
 | `tests/native/`, `tests/plugin/` | Native subsystem and plugin record tests |
 | `cmake/`, build/setup scripts | Dependencies, validation and packaging |
@@ -32,6 +33,12 @@ synchronized results.
 Tests mirror these boundaries. Parser, UI history and VM metadata rules run without
 Skyrim; compiler tests run Caprica with synthetic declarations. In-game dispatch
 and save-load behavior still require manual validation.
+
+The standalone preview compiles the production menu sources against a Dear ImGui
+backend and synthetic shell services. Its host retains value-only session data
+between UI module loads; menu callbacks, completion metadata pointers and ImGui
+resources are destroyed before unloading. Layout edits reload between frames.
+Shared session or host changes require rebuilding and restarting the preview.
 
 CMake discovers native `.cpp` files and subsystem tests with `CONFIGURE_DEPENDS`.
 Release and analysis targets share the source list. Compiler tests remain separate
