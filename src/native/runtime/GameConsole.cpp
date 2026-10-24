@@ -34,6 +34,16 @@ namespace elder_shell {
         };
     }
 
+    RE::NiPointer<RE::TESObjectREFR> ConsoleSelection() {
+        // The console handle moved alongside other globals in AE 1.6.1130.
+        // https://github.com/alandtse/CommonLibVR/blob/ng/src/RE/C/Console.cpp
+        const auto version = REL::Module::get().version();
+        const auto id =
+            ConsoleSelectedReferenceID(REL::Module::IsAE(), {version.major(), version.minor(), version.patch()});
+        const REL::Relocation<RE::ObjectRefHandle*> selected{REL::ID{id}};
+        return selected->get();
+    }
+
     std::string RunGameConsole(std::string_view command, RE::TESObjectREFR* target) {
         auto* log = RE::ConsoleLog::GetSingleton();
         auto* factory = RE::IFormFactory::GetConcreteFormFactoryByType<RE::Script>();
@@ -43,7 +53,7 @@ namespace elder_shell {
 
         const std::string before(log->buffer.c_str());
         const std::string lastMessage(log->lastMessage);
-        const auto selected = RE::Console::GetSelectedRef();
+        const auto selected = ConsoleSelection();
         script->SetCommand(command);
         {
             ConsoleMode mode;

@@ -14,7 +14,7 @@ namespace elder_shell {
         }
 
         RE::TESObjectREFR* GetConsoleReference(RE::TESQuest* self) {
-            return ValidService(self) ? RE::Console::GetSelectedRef().get() : nullptr;
+            return ValidService(self) ? ConsoleSelection().get() : nullptr;
         }
 
         RE::Actor* GetConsoleActor(RE::TESQuest* self) {
