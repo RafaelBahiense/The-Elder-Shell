@@ -7,6 +7,14 @@
 #include <vector>
 
 namespace ImGuiMCP {
+    using ::ImGuiCol_Text;
+    using ::ImGuiCond_Appearing;
+    using ::ImGuiTableColumnFlags_WidthFixed;
+    using ::ImGuiTableColumnFlags_WidthStretch;
+    using ::ImGuiTableFlags_BordersInnerH;
+    using ::ImGuiTableFlags_RowBg;
+    using ::ImGuiTableFlags_SizingFixedFit;
+    using ::ImGuiTableFlags_SizingStretchProp;
     using namespace ImGui;
     using ::ImGuiCol_FrameBg;
     using ::ImGuiID;

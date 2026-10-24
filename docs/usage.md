@@ -2,7 +2,8 @@
 
 Open **SKSE Menu Framework → The Elder Shell → Console**. Enter statements at
 the bottom `>` prompt. Wait for completion before using a result.
-Expand **Help** for selectable syntax examples and shortcuts.
+Open **Help** for selectable syntax examples and shortcuts. **Session details**
+shows compiler counts and usage warnings.
 
 Suggestions appear as you type variable names or members after `.`. Use **Up/Down**
 to select a match and **Tab/Enter** to insert it, or click one. **Escape** dismisses
@@ -87,16 +88,16 @@ Open **The Elder Shell → Instances**. Search by form/reference ID, script name
 or both. Searches run on request, examine at most 100,000 attached entries and
 return up to 128 results. Derived scripts match parent filters.
 
-Choose a variable name and **Use instance**, then access it through
+Select a result, choose a variable name in its details and click **Use instance**, then access it through
 `instance.Function()` or `instance.Property`. Selection retains an existing
 instance without creating or attaching scripts. Refreshing replaces search
 results; loading clears results and variables.
 
 ## Variable inspector
 
-Open **Variables** to see stored types and values. **Refresh variables** updates
-the snapshot; expand arrays to inspect elements. Object properties show their
-types without evaluating getters. **Read (runs getter)** explicitly evaluates a
+Open **Variables**, click **Refresh** and select a variable to inspect its value.
+Arrays show indexed rows; select an index to inspect that element. Object properties
+show their types without evaluating getters. **Read** explicitly evaluates a
 property and shows its result here and in Console. Reads can change game state.
 Values may change between refresh and read; reassigned variables require a refresh.
 Large snapshots are truncated; assign an array element to another variable for detail.
@@ -224,8 +225,8 @@ The compiler cache retains 30 folders, evicting the least recently used as neede
 Generated scripts under `Scripts/` are retained for saves.
 
 Use **Up/Down** for history.
-Output supports mouse selection and **Ctrl+C**;
-**Ctrl+A** selects the transcript when it has focus.
+Commands and results support mouse selection and **Ctrl+C**; **Ctrl+A** selects
+the focused text field. **Copy** copies one entry, and **Copy all** exports the full transcript.
 
 ## Actor cleanup by plugin
 

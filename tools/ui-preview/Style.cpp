@@ -4,7 +4,6 @@
 #include <filesystem>
 #include <string_view>
 
-
 namespace preview {
     namespace {
         void SetColor(ImGuiStyle& style, std::string_view name, unsigned int rgba) {

@@ -131,6 +131,11 @@ void preview::Tick() {
     });
 }
 
+void preview::InspectFixture(std::string_view variable) {
+    Reset(Scenario::Ready);
+    std::erase_if(variables.variables, [variable](const auto& row) { return row.name != variable; });
+}
+
 void preview::SaveSession(Session& session) {
     session.valid = true;
     session.menu = elder_shell::CaptureMenuSession();

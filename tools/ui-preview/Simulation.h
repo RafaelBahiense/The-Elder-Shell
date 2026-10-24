@@ -6,4 +6,5 @@ namespace preview {
     void Tick();
     void SaveSession(Session& session);
     void RestoreSession(const Session& session);
+    void InspectFixture(std::string_view variable);
 }

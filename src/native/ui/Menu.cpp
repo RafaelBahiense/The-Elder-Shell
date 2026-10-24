@@ -1,4 +1,5 @@
 #include "Menu.h"
+#include "Layout.h"
 #include "vm/VM.h"
 #include "History.h"
 #include "Suggestions.h"
@@ -20,8 +21,7 @@ namespace elder_shell {
         bool multiline = false;
         std::string error;
         History history;
-        std::string transcript;
-        std::vector<char> output{'\0'};
+
         bool focusCommand = false;
         bool promptActive = false;
         std::size_t commandCursor = 0;
@@ -34,32 +34,106 @@ namespace elder_shell {
         std::string explorerError;
 
         void __stdcall RenderInstances() {
-            ImGuiMCP::TextWrapped(
-                "Browse existing attached scripts. Select an instance to store it as a console variable.");
-            ImGuiMCP::InputText("Form/reference ID (optional)", explorerForm.data(), explorerForm.size());
-            ImGuiMCP::InputText("Script name (optional)", explorerScript.data(), explorerScript.size());
-            if (ImGuiMCP::Button("Search"))
+            static std::uint64_t selected = 0;
+            ui::Heading("ATTACHED SCRIPT INSTANCES");
+            ImGuiMCP::ImVec2 available;
+            ImGuiMCP::GetContentRegionAvail(&available);
+            const bool wide = ui::Wide(available.x);
+            const float filterWidth = wide ? std::min(available.x * 0.32f, ImGuiMCP::GetFontSize() * 16) : available.x;
+            bool search = false;
+            if (wide) {
+                if (ImGuiMCP::BeginTable("Instance search", 3, ImGuiMCP::ImGuiTableFlags_SizingFixedFit)) {
+                    ImGuiMCP::TableSetupColumn("Form", ImGuiMCP::ImGuiTableColumnFlags_WidthFixed, filterWidth);
+                    ImGuiMCP::TableSetupColumn("Script", ImGuiMCP::ImGuiTableColumnFlags_WidthFixed, filterWidth);
+                    ImGuiMCP::TableSetupColumn("Action", ImGuiMCP::ImGuiTableColumnFlags_WidthStretch);
+                    ImGuiMCP::TableNextRow();
+                    ImGuiMCP::TableSetColumnIndex(0);
+                    ImGuiMCP::TextDisabled("Form/reference ID (optional)");
+                    ImGuiMCP::TableSetColumnIndex(1);
+                    ImGuiMCP::TextDisabled("Script name (optional)");
+                    ImGuiMCP::TableNextRow();
+                    ImGuiMCP::TableSetColumnIndex(0);
+                    ImGuiMCP::SetNextItemWidth(filterWidth);
+                    ImGuiMCP::InputText("##InstanceForm", explorerForm.data(), explorerForm.size());
+                    ImGuiMCP::TableSetColumnIndex(1);
+                    ImGuiMCP::SetNextItemWidth(filterWidth);
+                    ImGuiMCP::InputText("##InstanceScript", explorerScript.data(), explorerScript.size());
+                    ImGuiMCP::TableSetColumnIndex(2);
+                    search = ImGuiMCP::Button("Search");
+                    ImGuiMCP::EndTable();
+                }
+            } else {
+                ImGuiMCP::TextDisabled("Form/reference ID (optional)");
+                ImGuiMCP::SetNextItemWidth(filterWidth);
+                ImGuiMCP::InputText("##InstanceForm", explorerForm.data(), explorerForm.size());
+                ImGuiMCP::TextDisabled("Script name (optional)");
+                ImGuiMCP::SetNextItemWidth(filterWidth);
+                ImGuiMCP::InputText("##InstanceScript", explorerScript.data(), explorerScript.size());
+                search = ImGuiMCP::Button("Search");
+            }
+            if (search) {
                 explorerError = ExploreInstances(explorerForm.data(), explorerScript.data());
-            ImGuiMCP::InputText("Store selected instance as", instanceVariable.data(), instanceVariable.size());
-            ImGuiMCP::TextUnformatted("Use it in Console: instance.Function() or instance.Property");
+                selected = 0;
+            }
             if (!explorerError.empty())
-                ImGuiMCP::TextWrapped("%s", explorerError.c_str());
+                ImGuiMCP::TextColored(ui::Failure, "%s", explorerError.c_str());
             const auto snapshot = InstanceSnapshot();
-            ImGuiMCP::TextWrapped("%s", snapshot.status.c_str());
-            if (ImGuiMCP::BeginChild("Instances", ImGuiMCP::ImVec2{0, 0}, ImGuiMCP::ImGuiChildFlags_Border)) {
+            ImGuiMCP::TextDisabled("%s", snapshot.status.c_str());
+            ImGuiMCP::Spacing();
+            auto chosen = std::ranges::find_if(snapshot.rows, [](const auto& row) { return row.id == selected; });
+            if (chosen == snapshot.rows.end() && !snapshot.rows.empty()) {
+                selected = snapshot.rows.front().id;
+                chosen = snapshot.rows.begin();
+            }
+            ImGuiMCP::GetContentRegionAvail(&available);
+            const auto listHeight =
+                wide ? 0.0f : std::min(available.y * 0.35f, ImGuiMCP::GetTextLineHeightWithSpacing() * 7);
+            if (ImGuiMCP::BeginChild("Instance results", {wide ? ui::ListWidth(available.x) : 0, listHeight},
+                                     ImGuiMCP::ImGuiChildFlags_Border)) {
+                ui::Heading("RESULTS");
+                if (snapshot.rows.empty())
+                    ImGuiMCP::TextWrapped("Search for attached scripts to inspect an instance.");
                 for (const auto& row : snapshot.rows) {
-                    const auto identifier = std::to_string(row.id);
-                    ImGuiMCP::PushID(identifier.c_str());
-                    ImGuiMCP::Text("%s | state: %s | VM handle: %s", row.script.c_str(),
-                                   row.state.empty() ? "default" : row.state.c_str(), row.handle.c_str());
-                    ImGuiMCP::BeginDisabled(!row.initialized);
-                    if (ImGuiMCP::Button("Use instance"))
-                        explorerError = UseInstance(row.id, instanceVariable.data());
-                    ImGuiMCP::EndDisabled();
-                    if (!row.initialized)
-                        ImGuiMCP::TextUnformatted("Not initialized");
+                    const auto id = std::to_string(row.id);
+                    ImGuiMCP::PushID(id.c_str());
+                    const auto state =
+                        row.initialized ? (row.state.empty() ? "Default state" : row.state) : "Not initialized";
+                    const auto label = row.script + "\n" + state;
+                    if (ImGuiMCP::Selectable(label.c_str(), row.id == selected, 0,
+                                             {0, ImGuiMCP::GetTextLineHeightWithSpacing() * 2.5f}))
+                        selected = row.id;
                     ImGuiMCP::PopID();
+                }
+            }
+            ImGuiMCP::EndChild();
+            if (wide)
+                ImGuiMCP::SameLine();
+            chosen = std::ranges::find_if(snapshot.rows, [](const auto& row) { return row.id == selected; });
+            if (ImGuiMCP::BeginChild("Instance details", {0, 0}, ImGuiMCP::ImGuiChildFlags_Border)) {
+                if (chosen == snapshot.rows.end()) {
+                    ImGuiMCP::TextDisabled("Select an instance to view its details.");
+                } else {
+                    ui::Heading(chosen->script.c_str());
+                    ImGuiMCP::TextColored(chosen->initialized ? ui::Success : ui::Pending, "%s",
+                                          chosen->initialized ? "Initialized" : "Not initialized");
+                    ImGuiMCP::Text("State: %s", chosen->state.empty() ? "Default" : chosen->state.c_str());
+                    ImGuiMCP::TextDisabled("VM handle: %s", chosen->handle.c_str());
+                    ImGuiMCP::Spacing();
                     ImGuiMCP::Separator();
+                    ImGuiMCP::Spacing();
+                    ImGuiMCP::TextUnformatted("Store as variable");
+                    ImGuiMCP::SetNextItemWidth(
+                        std::min(ImGuiMCP::GetWindowWidth() * 0.75f, ImGuiMCP::GetFontSize() * 16));
+                    ImGuiMCP::InputText("##InstanceVariable", instanceVariable.data(), instanceVariable.size());
+                    ImGuiMCP::BeginDisabled(!chosen->initialized);
+                    if (ImGuiMCP::Button("Use instance"))
+                        explorerError = UseInstance(chosen->id, instanceVariable.data());
+                    ImGuiMCP::EndDisabled();
+                    if (!chosen->initialized)
+                        ImGuiMCP::TextWrapped("This instance must be initialized before it can be used.");
+                    else
+                        ImGuiMCP::TextWrapped("Use %s.Function() or %s.Property in Console.", instanceVariable.data(),
+                                              instanceVariable.data());
                 }
             }
             ImGuiMCP::EndChild();
@@ -128,29 +202,80 @@ namespace elder_shell {
             return 0;
         }
 
-        float PromptHeight() {
-            return multiline ? ImGuiMCP::GetTextLineHeightWithSpacing() * 6 + ImGuiMCP::GetStyle()->FramePadding.y * 2
-                             : ImGuiMCP::GetFrameHeight();
+        struct OutputEntry {
+            Ticket owner;
+            ui::TextBuffer command;
+            ui::TextBuffer result;
+        };
+
+        std::vector<OutputEntry> entryOutput;
+
+        ImGuiMCP::ImVec4 StatusColor(Status status) {
+            if (status == Status::Rejected || status == Status::Abandoned)
+                return ui::Failure;
+            return status == Status::Completed ? ui::Success : ui::Pending;
         }
 
-        void RenderOutput(const std::vector<Entry>& entries, float assistanceHeight) {
+        std::string TranscriptText(const std::vector<Entry>& entries) {
             std::string text;
-            for (const auto& entry : entries) {
+            for (const auto& entry : entries)
                 text += std::format("#{} - {}\n> {}\n{}\n\n", entry.ticket.id, StatusName(entry.status), entry.command,
                                     entry.result);
+            return text;
+        }
+
+        void RenderOutput(const std::vector<Entry>& entries, float height) {
+            std::erase_if(entryOutput, [&](const auto& buffer) {
+                return std::ranges::none_of(
+                    entries, [&](const auto& entry) { return SameInspectionOwner(entry.ticket, buffer.owner); });
+            });
+            if (ImGuiMCP::BeginChild("Transcript", {0, height}, ImGuiMCP::ImGuiChildFlags_Border)) {
+                const bool atEnd =
+                    ImGuiMCP::GetScrollY() >= ImGuiMCP::GetScrollMaxY() - ImGuiMCP::GetTextLineHeightWithSpacing();
+                bool changed = false;
+                if (entries.empty()) {
+                    ui::Heading("PAPYRUS CONSOLE");
+                    ImGuiMCP::TextWrapped("Enter a Papyrus statement below. Results appear here.");
+                    ImGuiMCP::TextDisabled("Try: var player = Game.GetPlayer()");
+                }
+                for (const auto& entry : entries) {
+                    const auto id = std::to_string(entry.ticket.id);
+                    ImGuiMCP::PushID(id.c_str());
+                    ImGuiMCP::TextDisabled("#%llu", static_cast<unsigned long long>(entry.ticket.id));
+                    ImGuiMCP::SameLine();
+                    ImGuiMCP::TextColored(StatusColor(entry.status), "%s", StatusName(entry.status));
+                    ImGuiMCP::SameLine();
+                    if (ImGuiMCP::SmallButton("Copy")) {
+                        const auto text = std::format("> {}\n{}", entry.command, entry.result);
+                        ImGuiMCP::SetClipboardText(text.c_str());
+                    }
+                    ImGuiMCP::Spacing();
+                    auto buffer = std::ranges::find_if(
+                        entryOutput, [&](const auto& item) { return SameInspectionOwner(item.owner, entry.ticket); });
+                    if (buffer == entryOutput.end()) {
+                        entryOutput.push_back({entry.ticket, {}, {}});
+                        buffer = std::prev(entryOutput.end());
+                        changed = true;
+                    }
+                    changed = buffer->command.Update("> " + entry.command) || changed;
+                    ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, ui::Accent);
+                    buffer->command.Draw("##CommandText", 5);
+                    ImGuiMCP::PopStyleColor();
+                    changed = buffer->result.Update(entry.result) || changed;
+                    if (entry.status == Status::Rejected || entry.status == Status::Abandoned)
+                        ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, ui::Failure);
+                    buffer->result.Draw("##Result");
+                    if (entry.status == Status::Rejected || entry.status == Status::Abandoned)
+                        ImGuiMCP::PopStyleColor();
+                    ImGuiMCP::Spacing();
+                    ImGuiMCP::Separator();
+                    ImGuiMCP::Spacing();
+                    ImGuiMCP::PopID();
+                }
+                if (changed && atEnd)
+                    ImGuiMCP::SetScrollHereY(1);
             }
-            // Keep the buffer stable between updates so selection survives rendering.
-            if (text != transcript) {
-                transcript = std::move(text);
-                output.assign(transcript.begin(), transcript.end());
-                output.push_back('\0');
-            }
-            ImGuiMCP::ImVec2 available;
-            ImGuiMCP::GetContentRegionAvail(&available);
-            available.y = std::max(1.0f, available.y - PromptHeight() - ImGuiMCP::GetStyle()->ItemSpacing.y -
-                                             ImGuiMCP::GetStyle()->ItemSpacing.y - assistanceHeight);
-            ImGuiMCP::InputTextMultiline("##Output", output.data(), output.size(), available,
-                                         ImGuiMCP::ImGuiInputTextFlags_ReadOnly, nullptr, nullptr);
+            ImGuiMCP::EndChild();
         }
 
         void RenderUsage() {
@@ -168,63 +293,78 @@ namespace elder_shell {
         }
 
         void RenderHelp() {
-            if (!ImGuiMCP::CollapsingHeader("Help"))
+            bool open = true;
+            const auto font = ImGuiMCP::GetFontSize();
+            ImGuiMCP::SetNextWindowSize({std::min(font * 30, ImGuiMCP::GetWindowWidth() * 0.9f),
+                                         std::min(font * 20, ImGuiMCP::GetWindowHeight() * 0.9f)},
+                                        ImGuiMCP::ImGuiCond_Appearing);
+            if (!ImGuiMCP::BeginPopupModal("Console help", &open))
                 return;
-
-            static char text[] =
-                "Single-line: Enter runs one statement. Expressions display results.\n"
-                "Multiline: Enter inserts a newline when suggestions are closed; Ctrl+Enter runs.\n"
-                "Fragments support If/While blocks and comments. Commands change game state.\n\n"
-                "Actor player = Game.GetPlayer()\n"
-                "Int level = player.GetLevel()\n"
-                "level = player.GetLevel()\n"
-                "player.GetLevel()\n"
-                "Debug.Notification(\"Hello from Papyrus\")\n"
-                "var player = Game.GetPlayer()\n"
-                "instance.Property = value\n\n"
-                "vars\nunset name\nclearvars\nmethods Actor\n"
-                "ElderShell.Console.Execute(\"player.getavinfo health\")\n"
-                "Console commands show immediate output; delayed output is not captured.\n\n"
-                "Use Game.GetFormEx(0x...) for runtime references.\n"
-                "Supply every argument, including optional ones.\n"
-                "Suggestions: Up/Down selects; Tab/Enter or click accepts; Escape dismisses.\n"
-                "Ctrl+Space opens suggestions. Mouse wheel scrolls the list.\n"
-                "With suggestions closed: single-line Up/Down recalls history.\n"
-                "With suggestions closed: multiline arrows move the cursor; Tab indents.\n"
-                "Ctrl+C: copy selection. Ctrl+A: select focused text.\n"
-                "Variables clear on save load. Loaded types count since Skyrim started.\n"
-                "Input and import counts describe the last prepared evaluation.";
-            ImGuiMCP::ImVec2 available;
-            ImGuiMCP::GetContentRegionAvail(&available);
-            const auto lineHeight = ImGuiMCP::GetTextLineHeightWithSpacing();
-            const auto height = std::clamp(available.y * 0.4f, lineHeight * 3, lineHeight * 10);
-            ImGuiMCP::InputTextMultiline("##HelpText", text, sizeof(text), ImGuiMCP::ImVec2{0, height},
-                                         ImGuiMCP::ImGuiInputTextFlags_ReadOnly, nullptr, nullptr);
+            if (ImGuiMCP::BeginTabBar("Help pages")) {
+                if (ImGuiMCP::BeginTabItem("Basics")) {
+                    ImGuiMCP::TextWrapped(
+                        "Enter runs a single statement. Expressions display results; variables remain in the session "
+                        "until a save load.");
+                    ImGuiMCP::Spacing();
+                    static ui::TextBuffer examples;
+                    examples.Update(
+                        "var player = "
+                        "Game.GetPlayer()\nplayer.GetLevel()\nplayer.GetActorValue(\"Health\")\n\nvars\nunset "
+                        "player\nclearvars\nmethods Actor");
+                    examples.Draw("##Examples");
+                    ImGuiMCP::TextWrapped(
+                        "Enable Multiline for fragments, If/While blocks and comments. Ctrl+Enter runs the fragment.");
+                    ImGuiMCP::EndTabItem();
+                }
+                if (ImGuiMCP::BeginTabItem("Shortcuts")) {
+                    ImGuiMCP::TextWrapped(
+                        "Suggestions: Up/Down selects; Tab/Enter accepts; Escape dismisses; Ctrl+Space reopens.");
+                    ImGuiMCP::Spacing();
+                    ImGuiMCP::TextWrapped(
+                        "With suggestions closed: single-line Up/Down recalls history. Multiline Enter adds a newline "
+                        "and Tab indents.");
+                    ImGuiMCP::Spacing();
+                    ImGuiMCP::TextWrapped(
+                        "Select result text to copy it with Ctrl+C. Copy all exports the full transcript.");
+                    ImGuiMCP::EndTabItem();
+                }
+                if (ImGuiMCP::BeginTabItem("Services")) {
+                    static ui::TextBuffer examples;
+                    examples.Update(
+                        "var npc = "
+                        "ElderShell.Selection.GetConsoleActor()\nElderShell.Forms.Inspect(npc)\nElderShell.Actors."
+                        "InspectDialogue(npc)\nElderShell.Console.Execute(\"player.getavinfo health\", None)");
+                    examples.Draw("##Services");
+                    ImGuiMCP::TextWrapped(
+                        "Check that a reference exists before using it. Installed script APIs require every argument; "
+                        "packaged shell services expose defaults.");
+                    ImGuiMCP::Spacing();
+                    ImGuiMCP::TextWrapped(
+                        "Calls run in the Papyrus VM. Getters can execute code and changes can persist in a save. "
+                        "Console execution captures immediate output only.");
+                    ImGuiMCP::EndTabItem();
+                }
+                ImGuiMCP::EndTabBar();
+            }
+            ImGuiMCP::EndPopup();
         }
 
         void RenderStatus(const std::vector<Entry>& entries) {
-            std::size_t pending = 0;
-            const Entry* latestPending = nullptr;
-            for (const auto& entry : entries) {
-                if (entry.status == Status::Queued || entry.status == Status::Compiling ||
-                    entry.status == Status::Submitted) {
-                    ++pending;
-                    latestPending = &entry;
-                }
-            }
-
-            if (latestPending) {
-                ImGuiMCP::Text("%zu pending | #%llu: %s", pending,
-                               static_cast<unsigned long long>(latestPending->ticket.id),
-                               StatusName(latestPending->status));
-                ImGuiMCP::TextWrapped(
-                    "If a call waits for the paused game, close this menu to let it proceed. "
-                    "Calls are never automatically repeated.");
-            } else if (!entries.empty()) {
-                ImGuiMCP::Text("#%llu: %s", static_cast<unsigned long long>(entries.back().ticket.id),
-                               StatusName(entries.back().status));
-            } else {
-                ImGuiMCP::TextUnformatted("Ready");
+            const auto pending = std::ranges::count_if(entries, [](const auto& entry) {
+                return entry.status == Status::Queued || entry.status == Status::Compiling ||
+                       entry.status == Status::Submitted;
+            });
+            if (pending)
+                ImGuiMCP::TextColored(ui::Pending, "%zu pending", static_cast<std::size_t>(pending));
+            else if (!entries.empty())
+                ImGuiMCP::TextColored(StatusColor(entries.back().status), "#%llu: %s",
+                                      static_cast<unsigned long long>(entries.back().ticket.id),
+                                      StatusName(entries.back().status));
+            else
+                ImGuiMCP::TextColored(ui::Success, "Ready");
+            if (pending) {
+                ImGuiMCP::SameLine();
+                ImGuiMCP::TextDisabled("Close paused menus to let calls proceed.");
             }
         }
 
@@ -319,11 +459,11 @@ namespace elder_shell {
             return submit;
         }
 
-        void RenderPrompt() {
+        void RenderPrompt(float height) {
             ImGuiMCP::ImVec2 rowPosition;
             ImGuiMCP::GetCursorPos(&rowPosition);
             ImGuiMCP::AlignTextToFramePadding();
-            ImGuiMCP::TextUnformatted(">");
+            ImGuiMCP::TextColored(ui::Accent, ">");
             ImGuiMCP::SameLine();
             const auto& style = *ImGuiMCP::GetStyle();
             ImGuiMCP::ImVec2 labelSize;
@@ -336,8 +476,8 @@ namespace elder_shell {
             const auto buttonX = inputPosition.x + available.x - buttonWidth;
             const auto width = std::max(1.0f, available.x - buttonWidth - style.ItemSpacing.x);
             ImGuiMCP::SetNextItemWidth(width);
-            ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_FrameBg, ImGuiMCP::ImVec4{0, 0, 0, 0});
-            ImGuiMCP::PushStyleVar(ImGuiMCP::ImGuiStyleVar_FrameBorderSize, 0.0f);
+            ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_FrameBg, ImGuiMCP::ImVec4{0.06f, 0.06f, 0.06f, 1});
+            ImGuiMCP::PushStyleVar(ImGuiMCP::ImGuiStyleVar_FrameBorderSize, 1.0f);
             if (focusCommand) {
                 ImGuiMCP::SetKeyboardFocusHere();
                 focusCommand = false;
@@ -351,7 +491,7 @@ namespace elder_shell {
                 PromptKeyMask keys(ImGuiMCP::GetID(multiline ? "##Fragment" : "##Command"));
                 shortcutSubmit = RouteCompletionKeys(keys);
                 submitted = multiline ? ImGuiMCP::InputTextMultiline(
-                                            "##Fragment", input.data(), input.size(), {width, PromptHeight()},
+                                            "##Fragment", input.data(), input.size(), {width, height},
                                             flags | ImGuiMCP::ImGuiInputTextFlags_AllowTabInput, InputCallback, nullptr)
                                       : ImGuiMCP::InputText("##Command", input.data(), input.size(),
                                                             flags | ImGuiMCP::ImGuiInputTextFlags_CallbackHistory,
@@ -436,10 +576,19 @@ namespace elder_shell {
             }
             if (!IsTestedRuntime())
                 ImGuiMCP::TextWrapped("%s", UntestedRuntimeWarning.data());
-
+            const auto entries = Snapshot();
+            RenderStatus(entries);
+            ImGuiMCP::Spacing();
+            ImGuiMCP::BeginDisabled(entries.empty());
+            if (ImGuiMCP::Button("Copy all")) {
+                const auto text = TranscriptText(entries);
+                ImGuiMCP::SetClipboardText(text.c_str());
+            }
+            ui::NextControl("Clear finished");
             if (ImGuiMCP::Button("Clear finished"))
                 ClearFinished();
-            ImGuiMCP::SameLine();
+            ImGuiMCP::EndDisabled();
+            ui::NextControl("Multiline", true);
             if (ImGuiMCP::Checkbox("Multiline", &multiline)) {
                 input.swap(otherModeInput);
                 commandCursor = std::char_traits<char>::length(input.data());
@@ -449,22 +598,45 @@ namespace elder_shell {
                 history.ResetNavigation();
                 focusCommand = true;
             }
-            if (multiline)
-                ImGuiMCP::TextUnformatted(
-                    "Enter: accept suggestion or newline | Ctrl+Enter: run fragment | Top-level variables stay in the "
-                    "session");
+            ui::NextControl("Help");
+            if (ImGuiMCP::Button("Help"))
+                ImGuiMCP::OpenPopup("Console help");
+            ui::NextControl("Session details");
+            if (ImGuiMCP::Button("Session details"))
+                ImGuiMCP::OpenPopup("Session details##popup");
+            if (ImGuiMCP::BeginPopup("Session details##popup")) {
+                RenderUsage();
+                ImGuiMCP::EndPopup();
+            }
+            ImGuiMCP::Spacing();
             if (!error.empty())
-                ImGuiMCP::TextWrapped("%s", error.c_str());
-            RenderHelp();
-            ImGuiMCP::Separator();
-            const auto entries = Snapshot();
-            RenderStatus(entries);
-            RenderUsage();
-            const auto assistanceHeight = PrepareCompletion();
-            RenderOutput(entries, assistanceHeight);
+                ImGuiMCP::TextColored(ui::Failure, "%s", error.c_str());
+            ImGuiMCP::ImVec2 available;
+            ImGuiMCP::GetContentRegionAvail(&available);
+            const auto line = ImGuiMCP::GetTextLineHeightWithSpacing();
+            const auto gap = ImGuiMCP::GetStyle()->ItemSpacing.y;
+            const auto promptHeight =
+                multiline ? std::min(line * 6, std::max(ImGuiMCP::GetFrameHeight(), available.y * 0.35f))
+                          : ImGuiMCP::GetFrameHeight();
+            const auto editorHeight = promptHeight + line + ImGuiMCP::GetStyle()->WindowPadding.y * 2 + gap;
+            auto assistanceHeight =
+                std::min(PrepareCompletion(), std::max(0.0f, available.y - editorHeight - line * 3));
+            if (assistanceHeight < line) {
+                suggestions.Dismiss();
+                completion.items.clear();
+                assistanceHeight = 0;
+            }
+            RenderOutput(entries, std::max(line * 2, available.y - editorHeight - assistanceHeight - gap * 2));
             RenderCompletion(assistanceHeight);
-            RenderPrompt();
+            if (ImGuiMCP::BeginChild("Command editor", {0, editorHeight}, ImGuiMCP::ImGuiChildFlags_Border)) {
+                ImGuiMCP::TextDisabled("%s", multiline ? "FRAGMENT  |  Ctrl+Enter to run"
+                                                       : "COMMAND  |  Enter to run  |  Up/Down for history");
+                RenderPrompt(promptHeight);
+            }
+            ImGuiMCP::EndChild();
+            RenderHelp();
         }
+
     }
 
     MenuSession CaptureMenuSession() {

@@ -100,7 +100,7 @@ namespace {
         io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
         if (!pixels || width <= 0 || height <= 0)
             return 12;
-        for (const float size : {640.0f, 1000.0f}) {
+        for (const float size : {640.0f, 1000.0f, 1600.0f}) {
             io.DisplaySize = {size, 720};
             io.DeltaTime = 1.0f / 60;
             for (int scenario = 0; scenario < 6; ++scenario) {
@@ -119,6 +119,39 @@ namespace {
                     }
                 }
             }
+        }
+        const auto variablesPage =
+            std::ranges::find_if(SKSEMenuFramework::Pages, [](const auto& page) { return page.name == "Variables"; });
+        for (const auto name : {"numbers", "controller"}) {
+            preview::InspectFixture(name);
+            for (int frame = 0; frame < 3; ++frame) {
+                ImGui::NewFrame();
+                ImGui::SetNextWindowSize(io.DisplaySize);
+                ImGui::Begin("Smoke test");
+                variablesPage->render();
+                ImGui::End();
+                ImGui::Render();
+            }
+        }
+        const auto consolePage =
+            std::ranges::find_if(SKSEMenuFramework::Pages, [](const auto& page) { return page.name == "Console"; });
+        for (const bool multiline : {false, true}) {
+            MenuSession editing;
+            constexpr char expression[] = "player.Get";
+            std::copy(std::begin(expression), std::end(expression), editing.input.begin());
+            editing.multiline = multiline;
+            RestoreMenuSession(editing);
+            for (int frame = 0; frame < 3; ++frame) {
+                ImGui::NewFrame();
+                ImGui::SetNextWindowSize(io.DisplaySize);
+                ImGui::Begin("Smoke test");
+                if (frame == 1)
+                    ImGui::OpenPopup(multiline ? "Session details##popup" : "Console help");
+                consolePage->render();
+                ImGui::End();
+                ImGui::Render();
+            }
+            ImGui::ClosePopupsOverWindow(nullptr, false);
         }
         preview::Reset(preview::Scenario::Ready);
         if (Complete("player.Get", 10, *CompletionMetadataSnapshot(), true).items.empty())
