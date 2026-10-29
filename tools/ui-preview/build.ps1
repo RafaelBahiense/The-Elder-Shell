@@ -15,13 +15,27 @@ function Invoke-Tool([string] $program, [string[]] $arguments) {
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
 $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 if (-not $vs) { throw 'Visual Studio C++ tools and a Windows SDK are required.' }
-$developerCommand = Join-Path $vs 'Common7/Tools/VsDevCmd.bat'
-$developerEnvironment = & $env:ComSpec /d /c "call `"$developerCommand`" -no_logo -arch=x64 -host_arch=x64 >nul && set"
-if ($LASTEXITCODE -ne 0) { throw 'Could not initialize the compiler environment.' }
-foreach ($line in $developerEnvironment) {
-    if ($line -match '^([^=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process') }
+function Get-UniquePath([string] $value) {
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    ($value -split ';' | Where-Object { $_ -and $seen.Add($_.TrimEnd('\')) }) -join ';'
 }
-$env:PATH = (Join-Path $vs 'Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin') + ';' + (Join-Path $vs 'Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja') + ';' + $env:PATH
+$env:PATH = Get-UniquePath $env:PATH
+if ($env:__VSCMD_PREINIT_PATH) { $env:__VSCMD_PREINIT_PATH = Get-UniquePath $env:__VSCMD_PREINIT_PATH }
+$compilerReady = $env:VSINSTALLDIR -and $env:VCToolsInstallDir -and
+    $env:VSINSTALLDIR.TrimEnd('\') -ieq $vs.TrimEnd('\') -and
+    $env:VSCMD_ARG_TGT_ARCH -eq 'x64' -and $env:VSCMD_ARG_HOST_ARCH -eq 'x64' -and
+    (Test-Path -LiteralPath (Join-Path $env:VCToolsInstallDir 'bin/Hostx64/x64/cl.exe'))
+if (-not $compilerReady) {
+    $developerCommand = Join-Path $vs 'Common7/Tools/VsDevCmd.bat'
+    $developerEnvironment = & $env:ComSpec /d /c "call `"$developerCommand`" -no_logo -arch=x64 -host_arch=x64 >nul && set"
+    if ($LASTEXITCODE -ne 0) { throw 'Could not initialize the compiler environment.' }
+    foreach ($line in $developerEnvironment) {
+        if ($line -match '^([^=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process') }
+    }
+}
+$cmakeBin = Join-Path $vs 'Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin'
+$ninjaBin = Join-Path $vs 'Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja'
+$env:PATH = Get-UniquePath "$cmakeBin;$ninjaBin;$env:PATH"
 $configPath = Join-Path $RepoRoot '.tools/local.json'
 $config = if (Test-Path -LiteralPath $configPath) { [IO.File]::ReadAllText($configPath) | ConvertFrom-Json } else { $null }
 $previewVcpkg = if ($config -and $config.Vcpkg) { $config.Vcpkg } else { Join-Path $RepoRoot '.tools/vcpkg' }
