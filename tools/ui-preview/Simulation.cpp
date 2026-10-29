@@ -1,6 +1,7 @@
 #include "Simulation.h"
 #include "runtime/Compatibility.h"
 #include "runtime/CompletionInput.h"
+#include "runtime/PapyrusBacklog.h"
 #include "shell/Command.h"
 #include <chrono>
 #include <format>
@@ -12,6 +13,7 @@ namespace {
     InstanceExplorer instances;
     EvaluationUsage usage;
     EvaluationEnvironment metadata;
+    PapyrusBacklog backlog;
     bool ready = true;
     std::vector<std::pair<Ticket, std::chrono::steady_clock::time_point>> pending;
 
@@ -40,6 +42,9 @@ namespace {
 }
 
 void preview::Reset(Scenario scenario) {
+    elder_shell::ResetPapyrusBacklog(scenario != Scenario::Empty);
+    if (scenario != Scenario::Empty)
+        elder_shell::RefreshPapyrusBacklog();
     requests = {};
     variables = {};
     variables.status = "Preview variables";
@@ -163,6 +168,37 @@ void preview::RestoreSession(const Session& session) {
 }
 
 namespace elder_shell {
+    void RefreshPapyrusBacklog(bool full) {
+        backlog = {};
+        backlog.captured = true;
+        backlog.capturedAt = std::chrono::steady_clock::now();
+        backlog.status = "Preview: synthetic VM snapshot.";
+        backlog.full = full;
+        backlog.registeredStacks = 24000;
+        backlog.latentReturns = 24;
+        backlog.suspendedOverflow = 23500;
+        backlog.functionOverflow = 16;
+        backlog.sampledStacks = 4096;
+        backlog.sampledCalls = 1040;
+        backlog.calls = {{"ExampleController.OnLocationChange", 1000}, {"ExampleAlias.OnUpdate", 40}};
+        backlog.states = {
+            {"Running / scheduled", 4000}, {"Waiting on latent function", 24}, {"Waiting on another stack's call", 72}};
+        if (full) {
+            backlog.sampledStacks = backlog.registeredStacks;
+            backlog.sampledCalls = backlog.suspendedOverflow + backlog.functionOverflow;
+            backlog.calls.front().count = backlog.sampledCalls - backlog.calls.back().count;
+            backlog.states.front().count = backlog.registeredStacks - 96;
+        }
+    }
+
+    PapyrusBacklog PapyrusBacklogSnapshot() {
+        return backlog;
+    }
+
+    void ResetPapyrusBacklog(bool) {
+        backlog = {};
+    }
+
     void RefreshCompletionMetadata(std::string) {}
 
     std::shared_ptr<const EvaluationEnvironment> CompletionMetadataSnapshot() {

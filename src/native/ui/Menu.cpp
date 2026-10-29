@@ -637,5 +637,6 @@ namespace elder_shell {
         SKSEMenuFramework::AddSectionItem("Console", Render);
         SKSEMenuFramework::AddSectionItem("Variables", RenderVariables);
         SKSEMenuFramework::AddSectionItem("Instances", RenderInstances);
+        SKSEMenuFramework::AddSectionItem("Papyrus", RenderPapyrus);
     }
 }

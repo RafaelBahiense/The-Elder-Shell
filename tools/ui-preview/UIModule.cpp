@@ -3,6 +3,7 @@
 #include "Style.h"
 #include "ui/Menu.h"
 #include "shell/Completion.h"
+#include "runtime/PapyrusBacklog.h"
 #include <SKSEMCP/SKSEMenuFramework.hpp>
 #include <imgui_impl_win32.h>
 #include <imgui_impl_dx11.h>
@@ -89,7 +90,7 @@ namespace {
 
     int SmokeTest() {
         using namespace elder_shell;
-        if (SKSEMenuFramework::Pages.size() != 3)
+        if (SKSEMenuFramework::Pages.size() != 4)
             return 10;
         if (session->valid && (CaptureMenuSession().input != session->menu.input ||
                                Snapshot().size() != session->requests.Entries().size()))
@@ -120,6 +121,23 @@ namespace {
                 }
             }
         }
+        RefreshPapyrusBacklog(true);
+        const auto fullBacklog = PapyrusBacklogSnapshot();
+        if (!fullBacklog.captured || !fullBacklog.full ||
+            fullBacklog.sampledCalls != fullBacklog.suspendedOverflow + fullBacklog.functionOverflow)
+            return 30;
+        const auto papyrusPage =
+            std::ranges::find_if(SKSEMenuFramework::Pages, [](const auto& page) { return page.name == "Papyrus"; });
+        if (papyrusPage == SKSEMenuFramework::Pages.end())
+            return 31;
+        ImGui::NewFrame();
+        ImGui::Begin("Backlog report smoke test");
+        papyrusPage->render();
+        ImGui::End();
+        ImGui::Render();
+        ResetPapyrusBacklog(false);
+        if (PapyrusBacklogSnapshot().captured)
+            return 32;
         const auto variablesPage =
             std::ranges::find_if(SKSEMenuFramework::Pages, [](const auto& page) { return page.name == "Variables"; });
         for (const auto name : {"numbers", "controller"}) {

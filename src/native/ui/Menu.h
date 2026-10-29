@@ -17,4 +17,5 @@ namespace elder_shell {
     void RestoreMenuSession(const MenuSession& state);
     void RegisterMenu();
     void __stdcall RenderVariables();
+    void __stdcall RenderPapyrus();
 }

@@ -20,7 +20,8 @@ list(GET version_parts 2 PROJECT_VERSION_PATCH)
 configure_file("${REPO_ROOT}/cmake/ModInfo.h.in" generated/ModInfo.h @ONLY)
 include(Theme.cmake)
 add_library(eldershell-preview-ui SHARED UIModule.cpp Simulation.cpp Style.cpp
-  "${REPO_ROOT}/src/native/ui/Menu.cpp" "${REPO_ROOT}/src/native/ui/Variables.cpp")
+  "${REPO_ROOT}/src/native/ui/Menu.cpp" "${REPO_ROOT}/src/native/ui/Variables.cpp"
+  "${REPO_ROOT}/src/native/ui/Papyrus.cpp")
 add_custom_command(TARGET eldershell-preview-ui POST_BUILD
   COMMAND "${CMAKE_COMMAND}" -E touch "${CMAKE_CURRENT_BINARY_DIR}/ui-ready")
 add_executable(eldershell-ui-preview WIN32 Main.cpp ReloadableUI.cpp)

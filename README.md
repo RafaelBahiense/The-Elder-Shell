@@ -41,6 +41,8 @@ Resolve known forms with `Game.GetFormFromFile()` or runtime references with
 The **Instances** tab finds existing attached scripts and stores them in variables.
 The **Variables** tab shows values and arrays, with explicit controls for running
 property getters. Member completion and parameter hints help explore available APIs.
+The **Papyrus** tab shows live queue sizes and grouped call counts, with quick
+snapshots and full overflow reports for investigating delayed scripts.
 
 For installed scripts, supply every function argument, including optional ones.
 

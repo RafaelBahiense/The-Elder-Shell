@@ -90,6 +90,20 @@ Up to 64 typed variables are retained until a save load or new game. Pending
 and failed assignments cannot be used. Object types survive `None` results;
 arrays retain live VM references. Removing a variable does not cancel its command.
 
+## Papyrus backlog
+
+Open **The Elder Shell → Papyrus** and click **Refresh snapshot** to inspect
+registered stacks, latent return registrations and overflow queue sizes.
+The tables group a bounded sample of queued calls and stack states. Refresh
+again to see whether the queues are growing or draining. **Full backlog report**
+counts up to one million entries per overflow collection and exports every group
+beside the SKSE logs. A full scan can briefly pause the game; the report states
+whether overflow coverage is complete.
+
+Counts overlap; overflow totals exclude fixed queues. Samples identify call
+receivers, not necessarily event producers, and do not measure CPU cost or how
+long a request has waited. Inspection does not execute or remove queued work.
+
 ## Instances
 
 Open **The Elder Shell → Instances**. Search by form/reference ID, script name,

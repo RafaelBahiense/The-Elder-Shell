@@ -6,8 +6,8 @@ From the repository root:
 ./tools/ui-preview/build.ps1
 ```
 
-Opens a resizable 900 × 720 window with the production Console, Variables and
-Instances pages. Save UI sources to rebuild and reload the menu. A failed build
+Opens a resizable 900 × 720 window with the production Console, Variables,
+Instances and Papyrus pages. Save UI sources to rebuild and reload the menu. A failed build
 keeps the current UI running; see `build/ui-preview/hot-reload.log` for details.
 Close the preview to stop watching.
 

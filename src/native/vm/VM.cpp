@@ -1,3 +1,4 @@
+#include "runtime/PapyrusBacklog.h"
 #include "VM.h"
 #include "ValueDisplay.h"
 #include "shell/Command.h"
@@ -822,6 +823,7 @@ namespace elder_shell {
     }
 
     void SessionChanged(bool ready) {
+        ResetPapyrusBacklog(ready);
         std::scoped_lock lock(mutex);
         requests.Loaded();
         variables.Clear();
