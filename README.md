@@ -44,13 +44,15 @@ property getters. Member completion and parameter hints help explore available A
 
 For installed scripts, supply every function argument, including optional ones.
 
-Use **Up/Down** to select a suggestion, **Tab/Enter** to accept it, **Escape** to
+Use **Up/Down** to select a suggestion, **Tab** to accept it, **Escape** to
 dismiss the list and **Ctrl+Space** to reopen it. With suggestions closed,
-single-line **Up/Down** recalls commands. Transcript output can be selected and copied.
+**Up/Down** recalls commands at the first or last draft line. Commands and output
+share one selectable console; only the current prompt is editable.
 
-Enable **Multiline** for several statements, `If`/`While` blocks and comments.
-**Enter** inserts a newline; **Ctrl+Enter** runs the fragment. Store results in
-variables to inspect them afterward.
+**Enter** runs a complete command and continues unfinished `If`/`While` blocks,
+parentheses or quotes. A trailing `\` joins the next line onto the command.
+Paste several statements or use **Shift+Enter** to insert a line. Store fragment
+results in variables to inspect them afterward.
 
 ```papyrus
 String combatState = "Out of combat"

@@ -6,7 +6,8 @@ Open **Help** for selectable syntax examples and shortcuts. **Session details**
 shows compiler counts and usage warnings.
 
 Suggestions appear as you type variable names or members after `.`. Use **Up/Down**
-to select a match and **Tab/Enter** to insert it, or click one. **Escape** dismisses
+to select a match and **Tab** to insert it, or click one. **Enter** runs the command.
+**Escape** dismisses
 the list; **Ctrl+Space** reopens it. Accepting a suggestion never executes it. Function calls show their
 parameter types and current argument. Suggestions read metadata without running code.
 Functions insert `()`, with the cursor inside when arguments are needed. Existing arguments are preserved.
@@ -44,12 +45,19 @@ weights.Length
 Use `Game.GetFormEx(0x...)` for full runtime FormIDs, including dynamic `FF…`
 references. Cast forms to their script type before accessing custom members.
 
-## Multiline mode
+## Continuing commands
 
-Enable **Multiline** above the transcript. With suggestions closed, **Enter** inserts a newline;
-**Ctrl+Enter** or **Execute** runs the whole fragment. Each mode keeps its draft.
-With suggestions open, arrows select and **Tab/Enter** accepts a match. Dismiss the
-list to move the cursor with arrows or indent with Tab.
+Enter commands directly after the transcript's `>` prompt. **Enter** submits a
+complete command; unfinished `If`/`While` blocks, parentheses and quotes continue
+on the next line. A trailing `\` joins physical lines into one logical line:
+
+```papyrus
+player.GetActorValue(\
+    "Health")
+```
+
+Paste several statements or use **Shift+Enter** to add a line without submitting.
+**Ctrl+Enter** submits immediately, letting Papyrus report incomplete syntax.
 
 ```papyrus
 Actor player = Game.GetPlayer()
@@ -63,7 +71,7 @@ EndIf
 `If`/`While` blocks, declarations, assignments and Papyrus comments are supported.
 Top-level declarations and changes to session variables are published on completion;
 block-local variables stay local. Function return values are discarded; inspect a stored
-variable afterward. Run session helpers in single-line mode. Script, function and event
+variable afterward. Run session helpers as individual commands. Script, function and event
 definitions are unsupported.
 
 Closing the menu does not cancel execution. A running loop occupies the evaluation
@@ -210,7 +218,7 @@ that baseline. Overrides are not saved and are restored before loading a save
 They survive `clearvars`, so retain the package reference or obtain it again to
 restore explicitly. At most 128 packages can have tracked overrides at once.
 
-In multiline mode, store returned strings in variables and inspect them afterward.
+In a fragment, store returned strings in variables and inspect them afterward.
 `clearvars` and loading a save clear session variables; `ElderShell` remains available
 from its real quest attachment. The binding cannot be reassigned, shadowed or unset.
 
@@ -228,8 +236,9 @@ The compiler cache retains 30 folders, evicting the least recently used as neede
 Generated scripts under `Scripts/` are retained for saves.
 
 Use **Up/Down** for history.
-Commands and results support mouse selection and **Ctrl+C**; **Ctrl+A** selects
-the focused text field. **Copy** copies one entry, and **Copy all** exports the full transcript.
+Commands and results form one selectable transcript. Drag across multiple entries
+and press **Ctrl+C** to copy the selection, or **Ctrl+A** to select the entire focused
+transcript.
 
 ## Actor cleanup by plugin
 

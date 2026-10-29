@@ -6,8 +6,7 @@
 
 namespace elder_shell {
     struct MenuSession {
-        std::array<char, 4097> input{}, otherModeInput{};
-        bool multiline = false;
+        std::array<char, 4097> input{};
         History history;
         std::array<char, 32> explorerForm{};
         std::array<char, 128> explorerScript{};

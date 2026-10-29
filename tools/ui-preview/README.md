@@ -33,7 +33,8 @@ vcpkg. Dear ImGui is installed into the separate preview build directory.
 ```
 
 The smoke test renders every page across scenarios and window sizes, checks
-array/property details, completion, help, session retention, and rejects a missing replacement
+array/property details, completion, help, protected console editing, continued commands,
+session retention, and rejects a missing replacement
 module while keeping the existing one. It opens no window.
 
 ## Styling

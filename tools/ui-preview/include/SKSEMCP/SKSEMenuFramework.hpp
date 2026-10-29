@@ -25,7 +25,9 @@ namespace ImGuiMCP {
     using ::ImGuiInputTextFlags_CallbackAlways;
     using ::ImGuiInputTextFlags_CallbackEdit;
     using ::ImGuiInputTextFlags_CallbackHistory;
+    using ::ImGuiInputTextFlags_CallbackResize;
     using ::ImGuiInputTextFlags_EnterReturnsTrue;
+    using ::ImGuiInputTextFlags_NoUndoRedo;
     using ::ImGuiInputTextFlags_ReadOnly;
     using ::ImGuiKey;
     using ::ImGuiKey_DownArrow;

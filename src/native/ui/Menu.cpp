@@ -4,6 +4,7 @@
 #include "History.h"
 #include "Suggestions.h"
 #include "CompletionControls.h"
+#include "ShellInput.h"
 #include "runtime/Compatibility.h"
 #include "runtime/CompletionInput.h"
 #include "ModInfo.h"
@@ -17,12 +18,17 @@
 namespace elder_shell {
     namespace {
         std::array<char, 4097> input{};
-        std::array<char, 4097> otherModeInput{};
-        bool multiline = false;
+        ShellDocument shell;
+        ShellSelection shellSelection;
+        std::vector<char> shellText = std::vector<char>(4097, '\0');
+        std::string nextPrefix;
+        std::optional<std::string> pendingDraft;
+        bool historyReplacement = false, focusTail = false;
         std::string error;
         History history;
 
         bool focusCommand = false;
+        int lastConsoleFrame = -2;
         bool promptActive = false;
         std::size_t commandCursor = 0;
         CompletionResult completion;
@@ -139,76 +145,97 @@ namespace elder_shell {
             ImGuiMCP::EndChild();
         }
 
-        void Run() {
-            if (!multiline)
-                history.Add(input.data());
-            error = Submit(input.data(), multiline);
-            if (error.empty() && !multiline)
-                input.fill('\0');
+        void Run(bool force) {
+            const std::string draft(input.data());
+            const auto command = ReadShellInput(draft);
+            if (!force && command.more) {
+                if (draft.size() == ShellDocument::MaximumDraft)
+                    error = "Command exceeds 4096 characters";
+                else
+                    pendingDraft = draft + '\n';
+            } else if (command.source.find_first_not_of(" \t\r\n") != std::string::npos) {
+                history.Add(draft);
+                error = Submit(command.source, command.fragment);
+                if (error.empty())
+                    pendingDraft = "";
+            }
             completion = {};
             suggestions.Dismiss();
             commandCursor = std::char_traits<char>::length(input.data());
             focusCommand = true;
         }
 
-        void InsertCompletion(ImGuiMCP::ImGuiInputTextCallbackData* data, const CompletionContext& context,
-                              const CompletionItem& item) {
-            const auto edit = CompletionInsertion(
-                std::string_view(data->Buf, static_cast<std::size_t>(data->BufTextLen)), context, item);
+        void InsertCompletion(const CompletionContext& context, const CompletionItem& item, ShellSelection& selection) {
+            const auto edit = CompletionInsertion(shell.Draft(), context, item);
             const auto& name = edit.text;
-            if (context.end > static_cast<std::size_t>(data->BufTextLen) ||
-                data->BufTextLen - (context.end - context.begin) + name.size() >= input.size())
+            if (context.end > shell.Draft().size() ||
+                shell.Draft().size() - (context.end - context.begin) + name.size() >= input.size())
                 return;
-            ImGuiMCP::ImGuiInputTextCallbackDataManager::DeleteChars(data, static_cast<int>(context.begin),
-                                                                     static_cast<int>(context.end - context.begin));
-            ImGuiMCP::ImGuiInputTextCallbackDataManager::InsertChars(data, static_cast<int>(context.begin), name.data(),
-                                                                     name.data() + name.size());
-            data->CursorPos =
-                static_cast<int>(std::min(context.begin + edit.cursor, static_cast<std::size_t>(data->BufTextLen)));
-            data->SelectionStart = data->SelectionEnd = data->CursorPos;
+            auto draft = shell.Draft();
+            draft.replace(context.begin, context.end - context.begin, name);
+            shell.SetDraft(draft, selection);
+            const auto cursor = shell.Boundary() + std::min(context.begin + edit.cursor, draft.size());
+            selection = {cursor, cursor, cursor};
             history.ResetNavigation();
-            suggestions.Update(std::format("{}:{}", data->CursorPos, data->Buf), 0);
             suggestions.Dismiss();
         }
 
-        int InputCallback(ImGuiMCP::ImGuiInputTextCallbackData* data) {
+        void SyncShell(ShellSelection& selection) {
+            shell.Rebase(nextPrefix, selection);
+            if (pendingDraft) {
+                shell.SetDraft(*pendingDraft, selection);
+                pendingDraft.reset();
+            }
             if (chosenCompletion) {
                 if (const auto environment = CompletionMetadataSnapshot()) {
-                    const auto result = Complete(data->Buf, static_cast<std::size_t>(data->CursorPos), *environment);
-                    InsertCompletion(data, result.context, *chosenCompletion);
+                    const auto cursor = selection.cursor >= shell.Boundary() ? selection.cursor - shell.Boundary()
+                                                                             : shell.Draft().size();
+                    const auto source = ReadShellInput(shell.Draft()).completion;
+                    const auto result = Complete(source, cursor, *environment);
+                    InsertCompletion(result.context, *chosenCompletion, selection);
                 }
                 chosenCompletion.reset();
             }
-            commandCursor = static_cast<std::size_t>(data->CursorPos);
-            if (data->EventFlag == ImGuiMCP::ImGuiInputTextFlags_CallbackEdit) {
-                history.ResetNavigation();
-                return 0;
+            if (focusTail) {
+                const auto end = shell.Boundary() + shell.Draft().size();
+                selection = {end, end, end};
+                focusTail = false;
             }
-            if (multiline || data->EventFlag != ImGuiMCP::ImGuiInputTextFlags_CallbackHistory)
-                return 0;
-
-            const auto command =
-                data->EventKey == ImGuiMCP::ImGuiKey_UpArrow
-                    ? history.Previous(std::string_view(data->Buf, static_cast<std::size_t>(data->BufTextLen)))
-                    : history.Next();
-            if (command) {
-                ImGuiMCP::ImGuiInputTextCallbackDataManager::DeleteChars(data, 0, data->BufTextLen);
-                ImGuiMCP::ImGuiInputTextCallbackDataManager::InsertChars(data, 0, command->data(),
-                                                                         command->data() + command->size());
-                data->CursorPos = data->BufTextLen;
-                data->SelectionStart = data->SelectionEnd = data->CursorPos;
-                commandCursor = static_cast<std::size_t>(data->CursorPos);
-            }
-            return 0;
+            input.fill('\0');
+            std::ranges::copy(shell.Draft(), input.begin());
+            commandCursor = selection.cursor >= shell.Boundary()
+                                ? std::min(selection.cursor - shell.Boundary(), shell.Draft().size())
+                                : 0;
         }
 
-        struct OutputEntry {
-            Ticket owner;
-            ui::TextBuffer command;
-            ui::TextBuffer result;
-        };
-
-        std::vector<OutputEntry> entryOutput;
+        int InputCallback(ImGuiMCP::ImGuiInputTextCallbackData* data) {
+            if (data->EventFlag == ImGuiMCP::ImGuiInputTextFlags_CallbackResize) {
+                shellText.resize(static_cast<std::size_t>(data->BufTextLen) + input.size());
+                data->Buf = shellText.data();
+                return 0;
+            }
+            ShellSelection selection{static_cast<std::size_t>(data->CursorPos),
+                                     static_cast<std::size_t>(data->SelectionStart),
+                                     static_cast<std::size_t>(data->SelectionEnd)};
+            const auto previous = shell.Draft();
+            if (!shell.Edit(std::string_view(data->Buf, static_cast<std::size_t>(data->BufTextLen)), selection))
+                error = "Command exceeds 4096 characters";
+            if (shell.Draft() != previous && !historyReplacement)
+                history.ResetNavigation();
+            historyReplacement = false;
+            SyncShell(selection);
+            const auto text = shell.Text();
+            if (std::string_view(data->Buf, static_cast<std::size_t>(data->BufTextLen)) != text) {
+                ImGuiMCP::ImGuiInputTextCallbackDataManager::DeleteChars(data, 0, data->BufTextLen);
+                ImGuiMCP::ImGuiInputTextCallbackDataManager::InsertChars(data, 0, text.data(),
+                                                                         text.data() + text.size());
+            }
+            data->CursorPos = static_cast<int>(std::min(selection.cursor, text.size()));
+            data->SelectionStart = static_cast<int>(std::min(selection.start, text.size()));
+            data->SelectionEnd = static_cast<int>(std::min(selection.end, text.size()));
+            shellSelection = selection;
+            return 0;
+        }
 
         ImGuiMCP::ImVec4 StatusColor(Status status) {
             if (status == Status::Rejected || status == Status::Abandoned)
@@ -219,63 +246,8 @@ namespace elder_shell {
         std::string TranscriptText(const std::vector<Entry>& entries) {
             std::string text;
             for (const auto& entry : entries)
-                text += std::format("#{} - {}\n> {}\n{}\n\n", entry.ticket.id, StatusName(entry.status), entry.command,
-                                    entry.result);
+                text += std::format("> {}\n{}\n\n", entry.command, entry.result);
             return text;
-        }
-
-        void RenderOutput(const std::vector<Entry>& entries, float height) {
-            std::erase_if(entryOutput, [&](const auto& buffer) {
-                return std::ranges::none_of(
-                    entries, [&](const auto& entry) { return SameInspectionOwner(entry.ticket, buffer.owner); });
-            });
-            if (ImGuiMCP::BeginChild("Transcript", {0, height}, ImGuiMCP::ImGuiChildFlags_Border)) {
-                const bool atEnd =
-                    ImGuiMCP::GetScrollY() >= ImGuiMCP::GetScrollMaxY() - ImGuiMCP::GetTextLineHeightWithSpacing();
-                bool changed = false;
-                if (entries.empty()) {
-                    ui::Heading("PAPYRUS CONSOLE");
-                    ImGuiMCP::TextWrapped("Enter a Papyrus statement below. Results appear here.");
-                    ImGuiMCP::TextDisabled("Try: var player = Game.GetPlayer()");
-                }
-                for (const auto& entry : entries) {
-                    const auto id = std::to_string(entry.ticket.id);
-                    ImGuiMCP::PushID(id.c_str());
-                    ImGuiMCP::TextDisabled("#%llu", static_cast<unsigned long long>(entry.ticket.id));
-                    ImGuiMCP::SameLine();
-                    ImGuiMCP::TextColored(StatusColor(entry.status), "%s", StatusName(entry.status));
-                    ImGuiMCP::SameLine();
-                    if (ImGuiMCP::SmallButton("Copy")) {
-                        const auto text = std::format("> {}\n{}", entry.command, entry.result);
-                        ImGuiMCP::SetClipboardText(text.c_str());
-                    }
-                    ImGuiMCP::Spacing();
-                    auto buffer = std::ranges::find_if(
-                        entryOutput, [&](const auto& item) { return SameInspectionOwner(item.owner, entry.ticket); });
-                    if (buffer == entryOutput.end()) {
-                        entryOutput.push_back({entry.ticket, {}, {}});
-                        buffer = std::prev(entryOutput.end());
-                        changed = true;
-                    }
-                    changed = buffer->command.Update("> " + entry.command) || changed;
-                    ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, ui::Accent);
-                    buffer->command.Draw("##CommandText", 5);
-                    ImGuiMCP::PopStyleColor();
-                    changed = buffer->result.Update(entry.result) || changed;
-                    if (entry.status == Status::Rejected || entry.status == Status::Abandoned)
-                        ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_Text, ui::Failure);
-                    buffer->result.Draw("##Result");
-                    if (entry.status == Status::Rejected || entry.status == Status::Abandoned)
-                        ImGuiMCP::PopStyleColor();
-                    ImGuiMCP::Spacing();
-                    ImGuiMCP::Separator();
-                    ImGuiMCP::Spacing();
-                    ImGuiMCP::PopID();
-                }
-                if (changed && atEnd)
-                    ImGuiMCP::SetScrollHereY(1);
-            }
-            ImGuiMCP::EndChild();
         }
 
         void RenderUsage() {
@@ -303,8 +275,8 @@ namespace elder_shell {
             if (ImGuiMCP::BeginTabBar("Help pages")) {
                 if (ImGuiMCP::BeginTabItem("Basics")) {
                     ImGuiMCP::TextWrapped(
-                        "Enter runs a single statement. Expressions display results; variables remain in the session "
-                        "until a save load.");
+                        "Enter runs a complete command. Unfinished blocks, parentheses and quotes continue on the "
+                        "next line. A trailing backslash joins lines. Variables remain until a save load.");
                     ImGuiMCP::Spacing();
                     static ui::TextBuffer examples;
                     examples.Update(
@@ -313,19 +285,21 @@ namespace elder_shell {
                         "player\nclearvars\nmethods Actor");
                     examples.Draw("##Examples");
                     ImGuiMCP::TextWrapped(
-                        "Enable Multiline for fragments, If/While blocks and comments. Ctrl+Enter runs the fragment.");
+                        "Paste several statements or use Shift+Enter to insert a line. Ctrl+Enter submits without "
+                        "waiting for an unfinished construct to close.");
                     ImGuiMCP::EndTabItem();
                 }
                 if (ImGuiMCP::BeginTabItem("Shortcuts")) {
                     ImGuiMCP::TextWrapped(
-                        "Suggestions: Up/Down selects; Tab/Enter accepts; Escape dismisses; Ctrl+Space reopens.");
+                        "Suggestions: Up/Down selects; Tab accepts; Escape dismisses; Ctrl+Space reopens.");
                     ImGuiMCP::Spacing();
                     ImGuiMCP::TextWrapped(
-                        "With suggestions closed: single-line Up/Down recalls history. Multiline Enter adds a newline "
-                        "and Tab indents.");
+                        "Up/Down recalls history at the first or last draft line when suggestions are closed. "
+                        "Enter runs the command. Shift+Enter inserts a line.");
                     ImGuiMCP::Spacing();
                     ImGuiMCP::TextWrapped(
-                        "Select result text to copy it with Ctrl+C. Copy all exports the full transcript.");
+                        "Select across commands and results, then copy with Ctrl+C. Ctrl+A selects the focused "
+                        "transcript.");
                     ImGuiMCP::EndTabItem();
                 }
                 if (ImGuiMCP::BeginTabItem("Services")) {
@@ -357,9 +331,7 @@ namespace elder_shell {
             if (pending)
                 ImGuiMCP::TextColored(ui::Pending, "%zu pending", static_cast<std::size_t>(pending));
             else if (!entries.empty())
-                ImGuiMCP::TextColored(StatusColor(entries.back().status), "#%llu: %s",
-                                      static_cast<unsigned long long>(entries.back().ticket.id),
-                                      StatusName(entries.back().status));
+                ImGuiMCP::TextColored(StatusColor(entries.back().status), "%s", StatusName(entries.back().status));
             else
                 ImGuiMCP::TextColored(ui::Success, "Ready");
             if (pending) {
@@ -404,15 +376,16 @@ namespace elder_shell {
             ImGuiMCP::ImGuiID owner_;
         };
 
-        bool RouteCompletionKeys(PromptKeyMask& keys) {
-            const auto owner = ImGuiMCP::GetID(multiline ? "##Fragment" : "##Command");
+        bool RouteCompletionKeys(PromptKeyMask& keys, bool& force) {
+            const auto owner = ImGuiMCP::GetID("##Shell");
             if (ImGuiMCP::GetActiveID() != owner)
                 return false;
             const auto query = std::format("{}:{}", commandCursor, input.data());
             const auto environment = CompletionMetadataSnapshot();
-            const auto result =
-                environment ? Complete(input.data(), commandCursor, *environment, suggestions.ExplicitFor(query))
-                            : CompletionResult{};
+            const auto source = ReadShellInput(input.data()).completion;
+            const auto result = environment
+                                    ? Complete(source, commandCursor, *environment, suggestions.ExplicitFor(query))
+                                    : CompletionResult{};
             suggestions.Update(query, result.items.size());
             const auto& io = *ImGuiMCP::GetIO();
             const std::pair<ImGuiMCP::ImGuiKey, CompletionKey> bindings[] = {
@@ -428,8 +401,31 @@ namespace elder_shell {
                 const bool repeat = logical == CompletionKey::Up || logical == CompletionKey::Down;
                 if (!ImGuiMCP::IsKeyPressed(key, repeat ? ImGuiMCP::ImGuiInputFlags_Repeat : 0, owner))
                     continue;
+                if (shellSelection.cursor < shell.Boundary() || shellSelection.start < shell.Boundary()) {
+                    if (logical == CompletionKey::Enter) {
+                        keys.Consume(key);
+                        focusTail = true;
+                    }
+                    continue;
+                }
+                if (!suggestions.Visible() && !io.KeyCtrl && !io.KeyShift && !io.KeyAlt &&
+                    (logical == CompletionKey::Up || logical == CompletionKey::Down)) {
+                    const auto draft = std::string_view(input.data());
+                    const bool edge = logical == CompletionKey::Up
+                                          ? draft.substr(0, commandCursor).find('\n') == std::string_view::npos
+                                          : draft.substr(commandCursor).find('\n') == std::string_view::npos;
+                    if (edge) {
+                        const auto command = logical == CompletionKey::Up ? history.Previous(draft) : history.Next();
+                        if (command) {
+                            pendingDraft = std::string(*command);
+                            historyReplacement = true;
+                        }
+                        keys.Consume(key);
+                        continue;
+                    }
+                }
                 const auto action =
-                    CompletionShortcut(logical, suggestions.Visible(), multiline, io.KeyCtrl, io.KeyShift, io.KeyAlt);
+                    CompletionShortcut(logical, suggestions.Visible(), io.KeyCtrl, io.KeyShift, io.KeyAlt);
                 if (action == CompletionAction::None)
                     continue;
                 keys.Consume(key);
@@ -450,6 +446,7 @@ namespace elder_shell {
                         chosenCompletion = result.items[suggestions.Selected()];
                         break;
                     case CompletionAction::Submit:
+                        force = io.KeyCtrl;
                         submit = true;
                         break;
                     default:
@@ -459,65 +456,54 @@ namespace elder_shell {
             return submit;
         }
 
-        void RenderPrompt(float height) {
-            ImGuiMCP::ImVec2 rowPosition;
-            ImGuiMCP::GetCursorPos(&rowPosition);
-            ImGuiMCP::AlignTextToFramePadding();
-            ImGuiMCP::TextColored(ui::Accent, ">");
-            ImGuiMCP::SameLine();
-            const auto& style = *ImGuiMCP::GetStyle();
-            ImGuiMCP::ImVec2 labelSize;
-            ImGuiMCP::CalcTextSize(&labelSize, "Execute", nullptr, false, -1.0f);
-            const auto buttonWidth = labelSize.x + style.FramePadding.x * 2;
-            ImGuiMCP::ImVec2 available;
-            ImGuiMCP::GetContentRegionAvail(&available);
-            ImGuiMCP::ImVec2 inputPosition;
-            ImGuiMCP::GetCursorPos(&inputPosition);
-            const auto buttonX = inputPosition.x + available.x - buttonWidth;
-            const auto width = std::max(1.0f, available.x - buttonWidth - style.ItemSpacing.x);
-            ImGuiMCP::SetNextItemWidth(width);
-            ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_FrameBg, ImGuiMCP::ImVec4{0.06f, 0.06f, 0.06f, 1});
-            ImGuiMCP::PushStyleVar(ImGuiMCP::ImGuiStyleVar_FrameBorderSize, 1.0f);
+        void RenderShell(const std::vector<Entry>& entries, float height) {
+            nextPrefix = TranscriptText(entries) + "> ";
+            const auto owner = ImGuiMCP::GetID("##Shell");
+            if (ImGuiMCP::GetActiveID() != owner) {
+                SyncShell(shellSelection);
+                const auto text = shell.Text();
+                shellText.resize(std::max(shellText.size(), text.size() + input.size()));
+                std::ranges::copy(text, shellText.begin());
+                shellText[text.size()] = '\0';
+            } else
+                shellText.resize(std::max(shellText.size(), nextPrefix.size() + input.size()));
+            ImGuiMCP::PushStyleColor(ImGuiMCP::ImGuiCol_FrameBg, {0, 0, 0, 0});
             if (focusCommand) {
                 ImGuiMCP::SetKeyboardFocusHere();
                 focusCommand = false;
+                focusTail = true;
             }
-            const auto flags = ImGuiMCP::ImGuiInputTextFlags_EnterReturnsTrue |
-                               ImGuiMCP::ImGuiInputTextFlags_CallbackEdit |
-                               ImGuiMCP::ImGuiInputTextFlags_CallbackAlways;
-            bool submitted = false;
+            const auto flags = ImGuiMCP::ImGuiInputTextFlags_CallbackEdit |
+                               ImGuiMCP::ImGuiInputTextFlags_CallbackAlways |
+                               ImGuiMCP::ImGuiInputTextFlags_CallbackResize | ImGuiMCP::ImGuiInputTextFlags_NoUndoRedo;
             bool shortcutSubmit = false;
+            bool force = false;
             {
-                PromptKeyMask keys(ImGuiMCP::GetID(multiline ? "##Fragment" : "##Command"));
-                shortcutSubmit = RouteCompletionKeys(keys);
-                submitted = multiline ? ImGuiMCP::InputTextMultiline(
-                                            "##Fragment", input.data(), input.size(), {width, height},
-                                            flags | ImGuiMCP::ImGuiInputTextFlags_AllowTabInput, InputCallback, nullptr)
-                                      : ImGuiMCP::InputText("##Command", input.data(), input.size(),
-                                                            flags | ImGuiMCP::ImGuiInputTextFlags_CallbackHistory,
-                                                            InputCallback);
+                PromptKeyMask keys(owner);
+                shortcutSubmit = RouteCompletionKeys(keys, force);
+                ImGuiMCP::InputTextMultiline("##Shell", shellText.data(), shellText.size(), {-1, height}, flags,
+                                             InputCallback, nullptr);
             }
-            promptActive = ImGuiMCP::IsItemActive();
+            promptActive = ImGuiMCP::IsItemActive() && shellSelection.cursor >= shell.Boundary() &&
+                           shellSelection.start >= shell.Boundary();
             PublishCompletionInput(promptActive && suggestions.Visible());
-            if (promptActive && suggestions.Visible()) {
+            if (promptActive) {
                 // Reserve next frame's keys before ImGui's focus navigation.
-                const auto owner = ImGuiMCP::GetID(multiline ? "##Fragment" : "##Command");
                 for (const auto key :
                      {ImGuiMCP::ImGuiKey_UpArrow, ImGuiMCP::ImGuiKey_DownArrow, ImGuiMCP::ImGuiKey_Enter,
-                      ImGuiMCP::ImGuiKey_KeypadEnter, ImGuiMCP::ImGuiKey_Tab, ImGuiMCP::ImGuiKey_Escape})
+                      ImGuiMCP::ImGuiKey_KeypadEnter, ImGuiMCP::ImGuiKey_Tab})
                     ImGuiMCP::SetKeyOwner(key, owner, ImGuiMCP::ImGuiInputFlags_LockUntilRelease);
+                if (suggestions.Visible())
+                    ImGuiMCP::SetKeyOwner(ImGuiMCP::ImGuiKey_Escape, owner, ImGuiMCP::ImGuiInputFlags_LockUntilRelease);
             }
-            ImGuiMCP::PopStyleVar();
             ImGuiMCP::PopStyleColor();
-            ImGuiMCP::SameLine();
-            ImGuiMCP::SetCursorPos({buttonX, rowPosition.y});
-            const auto clicked = ImGuiMCP::Button("Execute", ImGuiMCP::ImVec2{buttonWidth, 0});
-            if (clicked || submitted || shortcutSubmit)
-                Run();
+            if (shortcutSubmit)
+                Run(force);
         }
 
         float PrepareCompletion() {
-            const auto context = CompletionAt(input.data(), commandCursor);
+            const auto source = ReadShellInput(input.data()).completion;
+            const auto context = CompletionAt(source, commandCursor);
             auto expression = context.receiver;
             if (!context.callReceiver.empty()) {
                 if (!expression.empty())
@@ -528,7 +514,7 @@ namespace elder_shell {
             completion = {};
             if (promptActive || focusCommand) {
                 if (const auto environment = CompletionMetadataSnapshot())
-                    completion = Complete(input.data(), commandCursor, *environment,
+                    completion = Complete(source, commandCursor, *environment,
                                           suggestions.ExplicitFor(std::format("{}:{}", commandCursor, input.data())));
             }
             suggestions.Update(std::format("{}:{}", commandCursor, input.data()), completion.items.size());
@@ -551,7 +537,7 @@ namespace elder_shell {
                 if (!completion.parameter.empty())
                     ImGuiMCP::TextUnformatted(completion.parameter.c_str());
                 if (!completion.items.empty())
-                    ImGuiMCP::Text("%zu/%zu | Up/Down: select | Tab/Enter: accept | Esc: dismiss",
+                    ImGuiMCP::Text("%zu/%zu | Up/Down: select | Tab: accept | Enter: run | Esc: dismiss",
                                    suggestions.Selected() + 1, completion.items.size());
                 const bool revealSelection = suggestions.TakeRevealRequest();
                 for (std::size_t i = 0; i < completion.items.size(); ++i) {
@@ -569,6 +555,10 @@ namespace elder_shell {
         }
 
         void __stdcall Render() {
+            const auto frame = ImGuiMCP::GetFrameCount();
+            if (frame != lastConsoleFrame + 1)
+                focusCommand = true;
+            lastConsoleFrame = frame;
             if (TakeCompletionDismissal()) {
                 suggestions.Dismiss();
                 chosenCompletion.reset();
@@ -580,24 +570,9 @@ namespace elder_shell {
             RenderStatus(entries);
             ImGuiMCP::Spacing();
             ImGuiMCP::BeginDisabled(entries.empty());
-            if (ImGuiMCP::Button("Copy all")) {
-                const auto text = TranscriptText(entries);
-                ImGuiMCP::SetClipboardText(text.c_str());
-            }
-            ui::NextControl("Clear finished");
             if (ImGuiMCP::Button("Clear finished"))
                 ClearFinished();
             ImGuiMCP::EndDisabled();
-            ui::NextControl("Multiline", true);
-            if (ImGuiMCP::Checkbox("Multiline", &multiline)) {
-                input.swap(otherModeInput);
-                commandCursor = std::char_traits<char>::length(input.data());
-                chosenCompletion.reset();
-                suggestions = {};
-                completion = {};
-                history.ResetNavigation();
-                focusCommand = true;
-            }
             ui::NextControl("Help");
             if (ImGuiMCP::Button("Help"))
                 ImGuiMCP::OpenPopup("Console help");
@@ -615,38 +590,31 @@ namespace elder_shell {
             ImGuiMCP::GetContentRegionAvail(&available);
             const auto line = ImGuiMCP::GetTextLineHeightWithSpacing();
             const auto gap = ImGuiMCP::GetStyle()->ItemSpacing.y;
-            const auto promptHeight =
-                multiline ? std::min(line * 6, std::max(ImGuiMCP::GetFrameHeight(), available.y * 0.35f))
-                          : ImGuiMCP::GetFrameHeight();
-            const auto editorHeight = promptHeight + line + ImGuiMCP::GetStyle()->WindowPadding.y * 2 + gap;
-            auto assistanceHeight =
-                std::min(PrepareCompletion(), std::max(0.0f, available.y - editorHeight - line * 3));
+            auto assistanceHeight = std::min(PrepareCompletion(), std::max(0.0f, available.y - line * 3));
             if (assistanceHeight < line) {
                 suggestions.Dismiss();
                 completion.items.clear();
                 assistanceHeight = 0;
             }
-            RenderOutput(entries, std::max(line * 2, available.y - editorHeight - assistanceHeight - gap * 2));
+            RenderShell(entries, std::max(line * 2, available.y - assistanceHeight - gap));
             RenderCompletion(assistanceHeight);
-            if (ImGuiMCP::BeginChild("Command editor", {0, editorHeight}, ImGuiMCP::ImGuiChildFlags_Border)) {
-                ImGuiMCP::TextDisabled("%s", multiline ? "FRAGMENT  |  Ctrl+Enter to run"
-                                                       : "COMMAND  |  Enter to run  |  Up/Down for history");
-                RenderPrompt(promptHeight);
-            }
-            ImGuiMCP::EndChild();
             RenderHelp();
         }
 
     }
 
     MenuSession CaptureMenuSession() {
-        return {input, otherModeInput, multiline, history, explorerForm, explorerScript, instanceVariable};
+        auto draft = input;
+        if (pendingDraft) {
+            draft.fill('\0');
+            std::ranges::copy(*pendingDraft, draft.begin());
+        }
+        return {draft, history, explorerForm, explorerScript, instanceVariable};
     }
 
     void RestoreMenuSession(const MenuSession& state) {
         input = state.input;
-        otherModeInput = state.otherModeInput;
-        multiline = state.multiline;
+        pendingDraft = input.data();
         history = state.history;
         history.ResetNavigation();
         explorerForm = state.explorerForm;
