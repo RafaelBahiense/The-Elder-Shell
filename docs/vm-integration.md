@@ -60,6 +60,29 @@ normal latent `Quest.Start()` and returns before/after reports with its Boolean
 result. It neither fabricates alias bindings nor treats dispatch as completion.
 Save loads retain the existing ticket/gate interruption contract; no call is replayed.
 
+Quest diagnostics and repairs are split between `QuestDiagnostics.cpp`,
+`ScriptDiagnostics.cpp` and `QuestRecovery.cpp`. Native registrations remain
+non-tasklet calls. Stack snapshots hold the VM running-stack lock while reading
+stable latent-wait frames; executing/frozen frames are not dereferenced. Reports
+retain copied values, never frame pointers. Attached object references are copied
+under the attachment lock and inspected after releasing it. Property getters are
+not executed during inspection; arrays are not recursively traversed.
+
+Repair plans hold bounded, session-only expected-state reports. Tokens combine
+a cryptographically random process scope with a monotonic counter. Snapshot and
+repair namespaces are distinct. Application rechecks identity, mapped state and
+operation restrictions; a compared plan is consumed even on mismatch. No plan
+is replayed after loading. Restart, alias and scene effects use compiled Papyrus
+wrappers. Property repair emits typed source with a single-use native checkpoint;
+the assignment still executes through the normal compiler and VM accessors.
+Snapshots are observational and are not rollback records.
+
+Condition evaluation uses a whitelist of native queries with sufficient context.
+Unknown functions and alias/package/event contexts are reported without invoking
+them. Synthetic latent results and direct stage-wait flag edits have no registered
+repair operation: native cancellation/completion ownership is not mapped.
+See [quest diagnostics](quest-diagnostics.md) for supported reports and limits.
+
 ## Ownership
 
 Variables retain their declared or inferred type even when a callback returns

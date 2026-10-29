@@ -33,9 +33,14 @@ int main(int argc, char** argv) {
         // Signature-only compiler inputs. These are never packaged as scripts.
         Write(imports / "Form.psc", "Scriptname Form\n");
         Write(imports / "Quest.psc",
-              "Scriptname Quest extends Form\nBool Function Start() Native\nFunction Stop() Native\n");
+              "Scriptname Quest extends Form\nBool Function Start() Native\nFunction Stop() Native\n"
+              "Function Reset() Native\nAlias Function GetAlias(Int aliasID) Native\n");
         Write(imports / "Alias.psc", "Scriptname Alias\n");
-        Write(imports / "ReferenceAlias.psc", "Scriptname ReferenceAlias extends Alias\nFunction Clear() Native\n");
+        Write(imports / "ReferenceAlias.psc",
+              "Scriptname ReferenceAlias extends Alias\nFunction Clear() Native\n"
+              "Function ForceRefTo(ObjectReference reference) Native\n");
+        Write(imports / "Scene.psc",
+              "Scriptname Scene extends Form\nFunction Start() Native\nFunction Stop() Native\n");
         Write(imports / "ObjectReference.psc", "Scriptname ObjectReference extends Form\n");
         Write(imports / "Actor.psc", "Scriptname Actor extends ObjectReference\n");
         Write(imports / "Faction.psc", "Scriptname Faction extends Form\n");

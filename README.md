@@ -12,7 +12,7 @@ a separate test mod or restarting Skyrim for each check.
 | Examine saved collections | Follow actor references and inspect arrays or data exposed by installed mod APIs |
 | Identify an NPC or object | Get the console selection or crosshair target; inspect FormIDs, base forms and defining plugins |
 | Investigate dialogue and AI | Inspect dialogue permissions, actor state, current packages and interruption flags |
-| Diagnose and recover quests | Inspect stages, flags and alias bindings; explicitly restart eligible stopped quests |
+| Diagnose and recover quests | Inspect lifecycle, aliases, conditions and paused script stacks; compare snapshots and preview targeted repairs |
 | Clean up NPC data | Inspect and remove supported plugin-related factions, spells, effects, items, aliases and script bindings |
 | Use Skyrim's console from Papyrus | Execute console commands and store their immediate output in variables |
 
@@ -78,6 +78,9 @@ ElderShell.Actors.InspectDialogue(npc)
 
 Check that `npc` contains an actor before calling its methods. The packaged
 services expose their optional argument defaults.
+
+See [quest and script diagnostics](docs/quest-diagnostics.md) for live stack
+inspection, snapshot comparisons and checked recovery operations.
 
 Capture Skyrim console output in a variable:
 

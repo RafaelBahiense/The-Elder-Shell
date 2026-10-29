@@ -1,6 +1,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #include "shell/Fragment.h"
+#include "shell/Recovery.h"
 
 #include "compiler/Compiler.h"
 #include "compiler/ScriptDeclarations.h"
@@ -27,9 +28,13 @@ TEST_CASE("Packaged service scripts support normal compiled property chains in b
     // Standalone fixtures, kept separate from the service asset output.
     write(scratch / "Form.psc", "Scriptname Form\n");
     write(scratch / "Quest.psc",
-          "Scriptname Quest extends Form\nBool Function Start() Native\nFunction Stop() Native\n");
+          "Scriptname Quest extends Form\nBool Function Start() Native\nFunction Stop() Native\n"
+          "Function Reset() Native\nAlias Function GetAlias(Int aliasID) Native\n");
     write(scratch / "Alias.psc", "Scriptname Alias\n");
-    write(scratch / "ReferenceAlias.psc", "Scriptname ReferenceAlias extends Alias\nFunction Clear() Native\n");
+    write(scratch / "ReferenceAlias.psc",
+          "Scriptname ReferenceAlias extends Alias\nFunction Clear() Native\n"
+          "Function ForceRefTo(ObjectReference reference) Native\n");
+    write(scratch / "Scene.psc", "Scriptname Scene extends Form\nFunction Start() Native\nFunction Stop() Native\n");
     write(scratch / "ObjectReference.psc", "Scriptname ObjectReference extends Form\n");
     write(scratch / "Actor.psc", "Scriptname Actor extends ObjectReference\n");
     write(scratch / "Faction.psc", "Scriptname Faction extends Form\n");
@@ -48,6 +53,28 @@ TEST_CASE("Packaged service scripts support normal compiled property chains in b
           "ElderShell.Forms.Inspect(ElderShell.Selection.GetCrosshairActor())",
           "ElderShell.Console.Execute(\"getav health\", target)",
           "ElderShell.Quests.Inspect(quest)",
+          "ElderShell.Quests.InspectLifecycle(quest)",
+          "ElderShell.Quests.InspectStages(quest)",
+          "ElderShell.Quests.InspectAliases(quest)",
+          "ElderShell.Quests.InspectDialogue(subject, quest)",
+          "ElderShell.Quests.InspectStorySelection(quest)",
+          "ElderShell.Quests.InspectDependencies(quest)",
+          "ElderShell.Quests.InspectScene(scene)",
+          "ElderShell.Quests.Compare(quest, \"token\")",
+          "ElderShell.Quests.ReadSnapshot(\"token\")",
+          "ElderShell.Quests.InspectRepair(\"token\")",
+          "ElderShell.Quests.RestartChecked(quest, \"token\")",
+          "ElderShell.Quests.RebindAlias(quest, 7, target, \"token\")",
+          "ElderShell.Quests.ChangeScene(scene, False, \"token\")",
+          "ElderShell.Scripts.InspectStacks(quest)",
+          "ElderShell.Scripts.InspectStack(1)",
+          "ElderShell.Scripts.InspectLatentCall(1)",
+          "ElderShell.Quests.InspectStartWaiters(quest)",
+          "ElderShell.Quests.PreviewFailPendingStart(quest, 1)",
+          "ElderShell.Quests.FailPendingStart(quest, 1, \"token\")",
+          "ElderShell.Scripts.InspectInstance(quest)",
+          "ElderShell.Scripts.InspectAliasInstance(quest, 7)",
+          "ElderShell.Scripts.PreviewPropertyRestore(quest, \"ExampleController\", \"Target\", \"None\", \"None\")",
           "ElderShell.Actors.InspectDialogue(subject)",
           "ElderShell.Quests.Restart(quest)",
           "ElderShell.Quests.Restart(quest, True)",
@@ -78,7 +105,8 @@ TEST_CASE("Packaged service scripts support normal compiled property chains in b
                                                 {"ObjectReference", "target"},
                                                 {"Actor", "subject"},
                                                 {"Faction", "registration"},
-                                                {"Package", "package"}},
+                                                {"Package", "package"},
+                                                {"Scene", "scene"}},
                                                "ServiceTest"));
         auto report = compiler.Compile(request);
         INFO(report.diagnostics);
@@ -90,6 +118,7 @@ TEST_CASE("Packaged service scripts support normal compiled property chains in b
                            {"Actor", "subject"},
                            {"Faction", "registration"},
                            {"Package", "package"},
+                           {"Scene", "scene"},
                            {"String", "output"}};
         fragment.body = "output = " + std::string(expression) + "\n";
         write(request.source, FragmentSource(fragment, "ServiceTest"));
@@ -97,6 +126,37 @@ TEST_CASE("Packaged service scripts support normal compiled property chains in b
         INFO(report.diagnostics);
         REQUIRE(report.succeeded);
     }
+    for (const auto expression :
+         {"ElderShell.Quests.Capture(quest)", "ElderShell.Quests.PreviewRestart(quest)",
+          "ElderShell.Quests.PreviewRebindAlias(quest, 7, target)", "ElderShell.Quests.PreviewScene(scene, False)"}) {
+        EvaluationStatement statement;
+        statement.resultType = "String";
+        statement.expression = expression;
+        write(request.source, EvaluationSource(statement,
+                                               {{"ElderShellRoot", "ElderShell"},
+                                                {"Quest", "quest"},
+                                                {"ObjectReference", "target"},
+                                                {"Scene", "scene"}},
+                                               "ServiceTest"));
+        const auto report = compiler.Compile(request);
+        INFO(report.diagnostics);
+        REQUIRE(report.succeeded);
+    }
+    write(scratch / "Game.psc", "Scriptname Game\nForm Function GetFormEx(Int id) Global Native\n");
+    write(scratch / "ExampleController.psc", "Scriptname ExampleController extends Quest\nForm Property Target Auto\n");
+    FragmentPlan property;
+    property.fields = {{"ElderShellRoot", "ElderShell"}, {"Form", "expectedForm"}, {"Form", "replacementForm"}};
+    property.body = recovery::PropertyRepairSource("test:7", 0xFE001800, "ExampleController", "Target", "expectedForm",
+                                                   "replacementForm");
+    write(request.source, FragmentSource(property, "ServiceTest"));
+    auto propertyReport = compiler.Compile(request);
+    INFO(propertyReport.diagnostics);
+    REQUIRE(propertyReport.succeeded);
+    property.body =
+        recovery::PropertyRepairSource("test:7", 0xFE001800, "ExampleController", "Target", "expectedForm", "12");
+    write(request.source, FragmentSource(property, "ServiceTest"));
+    propertyReport = compiler.Compile(request);
+    CHECK_FALSE(propertyReport.succeeded);
     for (const auto expression : {"ElderShell.Actors.CleanupPluginFactions(quest, \"Example.esm\", registration)",
                                   "ElderShell.Forms.Inspect(7)"}) {
         EvaluationStatement invalid;

@@ -3,6 +3,8 @@
 #include "PackageFlags.h"
 #include "FactionCleanup.h"
 #include "PluginActorCleanup.h"
+#include "Diagnostics.h"
+#include "shell/Recovery.h"
 #include "shell/Services.h"
 #include "RE/E/ExtraCanTalkToPlayer.h"
 #include "RE/C/CrosshairPickData.h"
@@ -109,10 +111,8 @@ namespace elder_shell {
         std::string InspectQuest(RE::TESQuest* self, RE::TESQuest* quest) {
             if (!ValidService(self) || !quest)
                 return "Provide an existing Quest and the Elder Shell service.";
-            const auto state = quest->IsStarting()   ? "Starting"
-                               : quest->IsStopping() ? "Stopping"
-                               : quest->IsStopped()  ? "Stopped"
-                                                     : "Running";
+            const auto state = recovery::Lifecycle(quest->IsEnabled(), quest->data.flags.any(RE::QuestFlag::kStageWait),
+                                                   static_cast<bool>(quest->promoteTask));
             std::string text = std::format(
                 "{} ({:08X})\nState: {}; stage: {}; enabled: {}; completed: {}\n"
                 "Flags: 0x{:04X}; Run Once: {}; alreadyRun: {}; event: 0x{:08X}\nAliases: {}",
@@ -157,7 +157,7 @@ namespace elder_shell {
                 return error;
             if (clearAlreadyRun && quest->alreadyRun) {
                 quest->alreadyRun = false;
-                quest->AddChange(RE::TESQuest::ChangeFlags::kQuestFlags);
+                quest->AddChange(RE::TESQuest::ChangeFlags::kQuestFlags | RE::TESQuest::ChangeFlags::kQuestAlreadyRun);
                 SKSE::log::info("Explicit quest recovery: cleared alreadyRun on {:08X}", quest->GetFormID());
             }
             return {};
@@ -201,6 +201,9 @@ namespace elder_shell {
         RegisterPackageServices(vm);
         RegisterFactionCleanupServices(vm);
         RegisterPluginActorCleanupServices(vm);
+        diagnostics::RegisterQuestDiagnostics(vm);
+        diagnostics::RegisterScriptDiagnostics(vm);
+        diagnostics::RegisterRecoveryServices(vm);
         return true;
     }
 }

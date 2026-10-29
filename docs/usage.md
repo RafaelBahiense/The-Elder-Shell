@@ -178,6 +178,9 @@ startup can run quest scripts and stages. Event-driven quests and the service
 quest are rejected. Make a separate save before recovery; a failed start does
 not undo the requested flag change or any script effects.
 
+For lifecycle, condition and live stack reports, snapshot comparisons and
+previewed repairs, see [quest and script diagnostics](quest-diagnostics.md).
+
 Inspect and temporarily change a package's interruption flags:
 
 ```papyrus

@@ -22,6 +22,65 @@ namespace elder_shell::services {
     // VM signatures do not expose source defaults. These defaults belong to
     // our packaged scripts; all other signature data still comes from the VM.
     inline void ApplyDefaults(std::string_view script, FunctionDeclaration& function) {
+        const auto names = [&](std::initializer_list<std::string_view> parameters) {
+            if (parameters.size() != function.parameters.size())
+                return;
+            std::size_t i = 0;
+            for (const auto name : parameters)
+                function.parameters[i++].name = name;
+        };
+        if (Equal(script, ScriptsScript)) {
+            if (Equal(function.name, "InspectAliasInstance") && function.parameters.size() == 3) {
+                names({"owner", "aliasID", "script"});
+                function.parameters[2].defaultValue = "\"\"";
+            }
+            if ((Equal(function.name, "InspectStacks") || Equal(function.name, "InspectInstance")) &&
+                function.parameters.size() == 2) {
+                function.parameters[0].name = "owner";
+                function.parameters[1].name = "script";
+                function.parameters[1].defaultValue = "\"\"";
+                if (Equal(function.name, "InspectStacks"))
+                    function.parameters[0].defaultValue = "None";
+            }
+            if ((Equal(function.name, "InspectStack") || Equal(function.name, "InspectLatentCall")) &&
+                function.parameters.size() == 1)
+                function.parameters[0].name = "stackID";
+            if (Equal(function.name, "PreviewPropertyRestore"))
+                names({"owner", "script", "propertyName", "expectedExpression", "replacementExpression"});
+            if (Equal(function.name, "CheckPropertyRestore"))
+                names({"owner", "script", "propertyName", "plan"});
+        }
+        if (Equal(script, QuestsScript)) {
+            for (const auto method : {"InspectLifecycle", "InspectStages", "InspectAliases", "InspectStorySelection",
+                                      "InspectDependencies", "InspectScene", "InspectStartWaiters", "Capture"})
+                if (Equal(function.name, method))
+                    names({"target"});
+            if (Equal(function.name, "InspectDialogue"))
+                names({"speaker", "target"});
+            if (Equal(function.name, "Compare"))
+                names({"target", "snapshot"});
+            if (Equal(function.name, "ReadSnapshot"))
+                names({"snapshot"});
+            if (Equal(function.name, "InspectRepair"))
+                names({"plan"});
+            if (Equal(function.name, "PreviewRestart"))
+                names({"target", "resetStages", "clearAlreadyRun"});
+            if (Equal(function.name, "PreviewFailPendingStart"))
+                names({"target", "stackID"});
+            if (Equal(function.name, "FailPendingStart"))
+                names({"target", "stackID", "plan"});
+            if (Equal(function.name, "PreviewRebindAlias"))
+                names({"target", "aliasID", "replacement"});
+            if (Equal(function.name, "PreviewScene"))
+                names({"target", "start"});
+            if ((Equal(function.name, "PreviewRestart") || Equal(function.name, "RestartChecked")) &&
+                function.parameters.size() >= 3) {
+                const auto first = Equal(function.name, "PreviewRestart") ? 1u : 2u;
+                for (auto i = first; i < function.parameters.size(); ++i)
+                    if (Equal(function.parameters[i].type, "Bool"))
+                        function.parameters[i].defaultValue = "False";
+            }
+        }
         if ((Equal(script, ActorsScript) || Equal(script, AIScript) || Equal(script, QuestsScript) ||
              Equal(script, ScriptsScript)) &&
             function.parameters.size() == 2 && Equal(function.parameters[0].type, "Actor") &&
