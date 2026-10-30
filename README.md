@@ -1,144 +1,155 @@
 # The Elder Shell
 
-An in-game Papyrus shell for investigating Skyrim and its mods. Inspect live
-objects, call installed script APIs, and make targeted changes without creating
-a separate test mod or restarting Skyrim for each check.
+**Ask the game what it's doing. Preferably before telling it to reset everything.**
 
-## What you can do
+The Elder Shell brings a Papyrus shell into Skyrim. Call installed script APIs,
+inspect live objects, follow references through a mod's state, and test changes
+while the game is running. For mod authors, patch makers and anyone whose
+troubleshooting has progressed beyond glaring at an NPC.
 
-| Task | Tools |
-| --- | --- |
-| Inspect a mod's live state | Find attached script instances, read properties and call their functions |
-| Examine saved collections | Follow actor references and inspect arrays or data exposed by installed mod APIs |
-| Identify an NPC or object | Get the console selection or crosshair target; inspect FormIDs, base forms and defining plugins |
-| Investigate dialogue and AI | Inspect dialogue permissions, actor state, current packages and interruption flags |
-| Diagnose and recover quests | Inspect lifecycle, aliases, conditions and paused script stacks; compare snapshots and preview targeted repairs |
-| Clean up NPC data | Inspect and remove supported plugin-related factions, spells, effects, items, aliases and script bindings |
-| Use Skyrim's console from Papyrus | Execute console commands and store their immediate output in variables |
+Checking one property should not require a throwaway quest, a compiled test
+script and another trip through the main menu.
 
-Use it to test an API while developing a mod, find which reference a controller
-tracks, or inspect a quest before choosing a recovery action. It works with
-existing objects and script instances in the running game.
+![The Elder Shell console running Papyrus and identifying a race's source plugins](assets/console.png)
 
-## Get started
+## Get answers from the running game
 
-Open **SKSE Menu Framework → The Elder Shell → Console** and run one statement
-at a time:
+- **Test a mod API where it actually runs.** Call functions on existing script
+  instances, read properties, keep results in variables and inspect arrays.
+- **Find the object a mod is really tracking.** Search attached scripts and follow
+  their references instead of assuming that the NPC in front of you is the one
+  in the controller.
+- **Investigate quests before repairing them.** Inspect lifecycle, aliases,
+  conditions and paused stacks; compare snapshots and preview supported repairs.
+- **Explain dialogue and AI problems.** Check activation blocking, dialogue
+  permissions, scenes, current packages and package interruption flags.
+- **Identify forms and inspect plugin-related actor data.** See defining plugins
+  and source files, then inspect supported factions, spells, effects, equipment,
+  inventory, aliases and script bindings. Explicit cleanup functions are available.
+- **See the Papyrus backlog.** Inspect queue sizes and grouped calls, refresh to
+  see changes, and export full overflow reports. "My CPU is idle" has finally
+  exhausted its usefulness as a diagnosis.
+
+## Console:
+
+Open **SKSE Menu Framework → The Elder Shell → Console** and try:
 
 ```papyrus
 var player = Game.GetPlayer()
 player.GetLevel()
 player.GetActorValue("Health")
-player.IsInCombat()
+player.GetRace()
 ```
 
-Results appear in the transcript. `var` infers the type; ordinary Papyrus type
-declarations work too. Variables last until you load a save or start a new game.
+Use ordinary Papyrus statements, typed variables, arrays, properties and
+`If`/`While` blocks. Member completion and parameter hints help explore installed
+APIs. Commands and results share a selectable transcript; variables remain
+available until you load a save or start a new game.
 
-Resolve known forms with `Game.GetFormFromFile()` or runtime references with
-`Game.GetFormEx()`, then cast them to their Papyrus type to call methods.
+**Enter** submits complete input and continues unfinished blocks. **Tab** accepts
+suggestions, **Escape** dismisses them, and **Up/Down** recalls history when the
+suggestion list is closed. Paste several statements or use **Shift+Enter** for
+another line; a trailing `\` joins lines.
 
-The **Instances** tab finds existing attached scripts and stores them in variables.
-The **Variables** tab shows values and arrays, with explicit controls for running
-property getters. Member completion and parameter hints help explore available APIs.
-The **Papyrus** tab shows live queue sizes and grouped call counts, with quick
-snapshots and full overflow reports for investigating delayed scripts.
+## Variables:
 
-For installed scripts, supply every function argument, including optional ones.
+Browse session variables, inspect array elements and read object properties.
+Property getters run only when you explicitly click **Read**.
 
-Use **Up/Down** to select a suggestion, **Tab** to accept it, **Escape** to
-dismiss the list and **Ctrl+Space** to reopen it. With suggestions closed,
-**Up/Down** recalls commands at the first or last draft line. Commands and output
-share one selectable console; only the current prompt is editable.
+![Variables tab showing a retained actor and explicitly read property values](assets/variables.png)
 
-**Enter** runs a complete command and continues unfinished `If`/`While` blocks,
-parentheses or quotes. A trailing `\` joins the next line onto the command.
-Paste several statements or use **Shift+Enter** to insert a line. Store fragment
-results in variables to inspect them afterward.
+## Instances:
 
-```papyrus
-String combatState = "Out of combat"
-If player.IsInCombat()
-    combatState = "In combat"
-EndIf
-```
+Search by form/reference ID, script name or both. Select an attached instance,
+give it a variable name and click **Use instance**. Its functions and properties
+are then available in Console through `instance.Function()` and
+`instance.Property`.
 
-After the fragment completes, enter `combatState` in single-line mode to read it.
+![Instances tab finding the existing Purity quest script and storing it as a variable](assets/instances.png)
+
+## Papyrus:
+
+**Refresh snapshot** shows registered stacks, latent return registrations,
+overflow queue sizes and grouped samples. **Full backlog report** exports a
+larger scan beside the SKSE logs.
+
+Counts describe queued work and stack state; they do not measure CPU cost,
+request age or prove a deadlock. Refreshing lets you see whether the backlog is
+growing or draining.
+
+![Papyrus tab displaying queue sizes and waiting versus running stack counts](assets/papyrus.png)
 
 ## Built-in services
 
-`ElderShell` groups services under `Selection`, `Forms`, `Actors`, `AI`, `Quests`,
-`Scripts` and `Console`. Inspection is separate from explicitly named actions such
-as `Set`, `Remove`, `Cleanup`, `Restore` and `Restart`.
+`ElderShell` provides `Selection`, `Forms`, `Actors`, `AI`, `Quests`, `Scripts`
+and `Console` services alongside ordinary Papyrus.
 
-To investigate an NPC, select it in Skyrim's console, then return to Elder Shell:
+Select an NPC in Skyrim's console, then inspect it:
 
 ```papyrus
 var npc = ElderShell.Selection.GetConsoleActor()
 ElderShell.Forms.Inspect(npc)
-ElderShell.Forms.Inspect(npc.GetActorBase())
 ElderShell.Actors.InspectDialogue(npc)
 ```
 
-Check that `npc` contains an actor before calling its methods. The packaged
-services expose their optional argument defaults.
-
-See [quest and script diagnostics](docs/quest-diagnostics.md) for live stack
-inspection, snapshot comparisons and checked recovery operations.
-
-Capture Skyrim console output in a variable:
+Check that `npc` contains an actor before calling its methods. You can also
+capture immediate Skyrim console output:
 
 ```papyrus
 var output = ElderShell.Console.Execute("player.getavinfo health")
 output
 ```
 
-Console execution captures immediate output; it does not wait for work scheduled
-by the command.
+See the [usage guide](docs/usage.md) for syntax, service functions, controls and
+limits, and [quest diagnostics](docs/quest-diagnostics.md) for inspection,
+snapshot comparisons and checked recovery operations.
 
-Calls execute in the real Papyrus VM. Property getters can run script code, and
-changes can persist in your save. Use a separate save before recovery or cleanup;
-there is no general undo. Plugin cleanup covers specific actor data, not a complete
-mod uninstall.
-
-See the [usage guide](docs/usage.md) for service functions, instance lookup,
-properties, arrays, session commands and execution limits.
-
-## Requirements
+## Requirements and installation
 
 | Requirement | What to install |
 | --- | --- |
-| [SKSE](https://skse.silverlock.org/) | The build matching your Skyrim executable version. Launch the game through SKSE. |
-| [Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444) | The package covering your Skyrim executable version. |
-| [SKSE Menu Framework](https://www.nexusmods.com/skyrimspecialedition/mods/120352) **3.9+** | The in-game interface used by the shell. Install the runtime mod, not the developer headers. |
-
-Tested on Skyrim **1.6.1170**. Other versions can be tried, but compatibility is
-unverified. Match dependencies to your executable version, rather than the
-Special Edition / Anniversary Edition store label.
+| [SKSE](https://skse.silverlock.org/) | The build matching your Skyrim executable. Launch through SKSE. |
+| [Address Library for SKSE Plugins](https://www.nexusmods.com/skyrimspecialedition/mods/32444) | The package covering your executable version. |
+| [SKSE Menu Framework](https://www.nexusmods.com/skyrimspecialedition/mods/120352) **3.9+** | The runtime mod. |
 
 Install the complete release ZIP through your mod manager and enable
-**TheElderShell.esp**. Keep its service scripts with the DLL. Caprica is embedded;
-no separate compiler is needed in-game.
+**TheElderShell.esp**. Keep the DLL and service scripts together. The Papyrus
+compiler is embedded; no separate compiler installation is needed in-game.
 
-## Build
+Tested on Skyrim **1.6.1170**. Other runtimes are unverified; quest startup
+failure recovery is restricted to 1.6.1170. Match dependencies to your executable
+version rather than the Special Edition / Anniversary Edition store label.
 
-With Visual Studio 2022 C++ tools, Windows SDK, CMake, Ninja and .NET 10 installed:
+## Before you start fixing things
+
+This tool executes real Papyrus against your running game. Calls and property
+getters can change state, and those changes can persist in your save. Keep a
+separate save before recovery or cleanup. Skyrim does not offer an undo button
+because you typed the command confidently.
+
+Plugin cleanup removes supported actor data; it is not a complete mod uninstaller.
+Console output captures immediate results and does not wait for deferred work.
+For installed script APIs, supply all arguments, including optional ones; packaged
+Elder Shell services expose their defaults.
+
+## Development
+
+Build with Visual Studio 2022 C++ tools, Windows SDK, CMake, Ninja and .NET 10:
 
 ```powershell
 ./setup.ps1
 ./build.ps1
 ```
 
-Install the resulting `build/package` folder through your mod manager.
-Builds do not modify your game directory.
+The installable files are written to `build/package`. For UI work,
+`./tools/ui-preview/build.ps1` opens a standalone preview with hot reload.
 
-For UI work, run `./tools/ui-preview/build.ps1` to open the standalone preview
-with hot reload. See [UI preview](tools/ui-preview/README.md) for scenarios and styling.
-
-Developer details: [how evaluation works](docs/compiled-evaluation.md),
-[architecture](docs/architecture.md),
-[embedded compiler](docs/embedded-compiler.md),
-[VM integration](docs/vm-integration.md), [builds and releases](docs/build-release.md).
+[Builds and releases](docs/build-release.md) ·
+[UI preview](tools/ui-preview/README.md) ·
+[Architecture](docs/architecture.md) ·
+[Evaluation](docs/compiled-evaluation.md) ·
+[Embedded compiler](docs/embedded-compiler.md) ·
+[VM integration](docs/vm-integration.md)
 
 ## License
 
