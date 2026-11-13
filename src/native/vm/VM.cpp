@@ -2,6 +2,7 @@
 #include "VM.h"
 #include "ValueDisplay.h"
 #include "shell/Command.h"
+#include "shell/Input.h"
 #include "shell/Variables.h"
 #include "compiler/Compiler.h"
 #include "VMImports.h"
@@ -568,7 +569,8 @@ namespace elder_shell {
     }
 
     std::string SubmitCommand(std::string line, const PropertyInspection* inspection = nullptr,
-                              Ticket* submitted = nullptr, bool multiline = false) {
+                              Ticket* submitted = nullptr, bool multiline = false, bool retain = false,
+                              std::optional<std::uint64_t> expectedGeneration = std::nullopt) {
         const auto parsed = Parse(line, multiline);
         auto* tasks = SKSE::GetTaskInterface();
         if (!tasks)
@@ -576,7 +578,9 @@ namespace elder_shell {
         Ticket ticket;
         {
             std::scoped_lock lock(mutex);
-            const auto created = requests.Begin(std::move(line));
+            if (expectedGeneration && *expectedGeneration != requests.Generation())
+                return "Game session changed before submission; command will not be replayed.";
+            const auto created = requests.Begin(std::move(line), retain);
             if (!created)
                 return "32 requests are pending; wait for them to finish";
             ticket = *created;
@@ -678,6 +682,34 @@ namespace elder_shell {
         return SubmitCommand(std::move(line), nullptr, nullptr, multiline);
     }
 
+    TrackedSubmission SubmitTracked(std::string line, bool multiline, std::uint64_t expectedGeneration) {
+        TrackedSubmission result;
+        try {
+            result.error = SubmitCommand(std::move(line), nullptr, &result.ticket, multiline, true, expectedGeneration);
+        } catch (const std::exception& error) {
+            if (result.ticket.id)
+                Reject(result.ticket, error.what());
+            else
+                result.error = error.what();
+        }
+        return result;
+    }
+
+    std::uint64_t RequestGeneration() {
+        std::scoped_lock lock(mutex);
+        return requests.Generation();
+    }
+
+    std::optional<Entry> RequestSnapshot(Ticket ticket) {
+        std::scoped_lock lock(mutex);
+        return requests.Find(ticket);
+    }
+
+    void ReleaseRequest(Ticket ticket) {
+        std::scoped_lock lock(mutex);
+        requests.Release(ticket);
+    }
+
     InspectionRead ReadInspectedProperty(PropertyInspection inspection) {
         InspectionRead result;
         if (!ValidPropertyInspection(inspection)) {
@@ -753,23 +785,46 @@ namespace elder_shell {
         return variableInspection;
     }
 
+    namespace {
+        // Caller holds mutex; type names only, with no property or function evaluation.
+        std::vector<SourceParameter> CompletionParameters() {
+            std::vector<SourceParameter> parameters{{services::RootScript, services::Root}};
+            for (const auto& [name, binding] : variables.Entries())
+                if (!binding.pending && binding.value && DeclarationType(binding.declaredType))
+                    parameters.push_back({binding.declaredType, name});
+            return parameters;
+        }
+    }
+
+    CompletionResult CompleteInput(std::string source, std::size_t cursor, std::uint64_t expectedGeneration) {
+        std::vector<SourceParameter> parameters;
+        {
+            std::scoped_lock lock(mutex);
+            if (!gameReady || expectedGeneration != requests.Generation())
+                throw std::runtime_error("Game session unavailable or changed; completion was discarded.");
+            parameters = CompletionParameters();
+        }
+        const auto input = ReadShellInput(source).completion;
+        EvaluationStatement statement;
+        statement.expression = CompletionMetadataExpression(CompletionAt(input, cursor));
+        const auto imports = SnapshotEvaluationImports(VM::GetSingleton(), statement, parameters);
+        return Complete(input, cursor, imports.environment, true);
+    }
+
     void RefreshCompletionMetadata(std::string expression) {
         auto* tasks = SKSE::GetTaskInterface();
         if (!tasks)
             return;
-        std::vector<SourceParameter> parameters{{services::RootScript, services::Root}};
+        std::vector<SourceParameter> parameters;
         auto key = expression;
         std::uint64_t revision;
         {
             std::scoped_lock lock(mutex);
             if (!gameReady || completionPending)
                 return;
-            for (const auto& [name, binding] : variables.Entries()) {
-                if (!binding.pending && binding.value && DeclarationType(binding.declaredType)) {
-                    parameters.push_back({binding.declaredType, name});
-                    key += "|" + name + ":" + binding.declaredType;
-                }
-            }
+            parameters = CompletionParameters();
+            for (const auto& parameter : parameters)
+                key += "|" + parameter.name + ":" + parameter.type;
             if (key == completionKey && completionMetadata)
                 return;
             completionKey = std::move(key);

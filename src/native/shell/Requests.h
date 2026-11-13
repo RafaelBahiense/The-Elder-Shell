@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -41,11 +42,13 @@ namespace elder_shell {
     // The engine/UI wrapper owns synchronization; this model is engine-independent.
     class Requests {
     public:
-        std::optional<Ticket> Begin(std::string command) {
+        std::optional<Ticket> Begin(std::string command, bool retain = false) {
             if (std::ranges::count_if(entries_, [](const Entry& entry) { return Pending(entry.status); }) >= 32)
                 return std::nullopt;
             Ticket ticket{++nextID_, generation_};
             entries_.push_back({ticket, std::move(command)});
+            if (retain)
+                retained_.insert(ticket.id);
             Trim();
             return ticket;
         }
@@ -54,6 +57,10 @@ namespace elder_shell {
             return ticket.generation == generation_ && std::ranges::any_of(entries_, [ticket](const Entry& entry) {
                        return entry.ticket.id == ticket.id && Pending(entry.status);
                    });
+        }
+
+        std::uint64_t Generation() const {
+            return generation_;
         }
 
         void Submitted(Ticket ticket) {
@@ -86,7 +93,21 @@ namespace elder_shell {
         }
 
         void ClearFinished() {
-            std::erase_if(entries_, [](const Entry& entry) { return !Pending(entry.status); });
+            std::erase_if(entries_, [&](const Entry& entry) {
+                return !Pending(entry.status) && !retained_.contains(entry.ticket.id);
+            });
+        }
+
+        std::optional<Entry> Find(Ticket ticket) const {
+            for (const auto& entry : entries_)
+                if (entry.ticket.id == ticket.id && entry.ticket.generation == ticket.generation)
+                    return entry;
+            return std::nullopt;
+        }
+
+        void Release(Ticket ticket) {
+            retained_.erase(ticket.id);
+            Trim();
         }
 
     private:
@@ -107,8 +128,9 @@ namespace elder_shell {
 
         void Trim() {
             while (entries_.size() > 128) {
-                const auto finished =
-                    std::ranges::find_if(entries_, [](const Entry& entry) { return !Pending(entry.status); });
+                const auto finished = std::ranges::find_if(entries_, [&](const Entry& entry) {
+                    return !Pending(entry.status) && !retained_.contains(entry.ticket.id);
+                });
                 if (finished == entries_.end())
                     break;
                 entries_.erase(finished);
@@ -117,5 +139,6 @@ namespace elder_shell {
 
         std::uint64_t generation_ = 0, nextID_ = 0;
         std::vector<Entry> entries_;
+        std::set<std::uint64_t> retained_;
     };
 }

@@ -32,6 +32,10 @@ script and another trip through the main menu.
 
 ## Console:
 
+Prefer your own terminal? Enable **Settings → Enable local terminal connection**
+and run the included [PowerShell client](tools/terminal/README.md). Enter the same
+Papyrus syntax, or run commands and script files from development tools.
+
 Open **SKSE Menu Framework → The Elder Shell → Console** and try:
 
 ```papyrus

@@ -105,6 +105,16 @@ namespace elder_shell {
         std::optional<std::size_t> parameterCount;
     };
 
+    inline std::string CompletionMetadataExpression(const CompletionContext& context) {
+        auto expression = context.receiver;
+        if (!context.callReceiver.empty()) {
+            if (!expression.empty())
+                expression += " + ";
+            expression += context.callReceiver;
+        }
+        return expression;
+    }
+
     struct CompletionEdit {
         std::string text;
         std::size_t cursor = 0;

@@ -2,6 +2,7 @@
 
 #include "shell/Requests.h"
 #include "shell/Inspection.h"
+#include "shell/Completion.h"
 #include <cstddef>
 #include <memory>
 
@@ -9,6 +10,7 @@ namespace elder_shell {
     struct EvaluationEnvironment;
     void RefreshCompletionMetadata(std::string expression);
     std::shared_ptr<const EvaluationEnvironment> CompletionMetadataSnapshot();
+    CompletionResult CompleteInput(std::string source, std::size_t cursor, std::uint64_t expectedGeneration);
     void RefreshVariableInspection();
     VariableInspection VariableInspectionSnapshot();
     InspectionRead ReadInspectedProperty(PropertyInspection inspection);
@@ -38,6 +40,17 @@ namespace elder_shell {
     std::string UseInstance(std::uint64_t id, std::string variable);
 
     std::string Submit(std::string command, bool multiline = false);
+
+    struct TrackedSubmission {
+        Ticket ticket;
+        std::string error;
+    };
+
+    // Submit on the game thread; snapshots and release contain only synchronized request data.
+    TrackedSubmission SubmitTracked(std::string command, bool multiline, std::uint64_t expectedGeneration);
+    std::uint64_t RequestGeneration();
+    std::optional<Entry> RequestSnapshot(Ticket ticket);
+    void ReleaseRequest(Ticket ticket);
     std::vector<Entry> Snapshot();
     EvaluationUsage EvaluationUsageSnapshot();
     void ClearFinished();

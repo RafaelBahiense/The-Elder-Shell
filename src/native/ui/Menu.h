@@ -18,4 +18,5 @@ namespace elder_shell {
     void RegisterMenu();
     void __stdcall RenderVariables();
     void __stdcall RenderPapyrus();
+    void __stdcall RenderSettings();
 }

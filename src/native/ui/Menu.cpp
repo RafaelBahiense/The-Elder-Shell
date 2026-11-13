@@ -505,13 +505,7 @@ namespace elder_shell {
         void PrepareCompletion() {
             const auto source = ReadShellInput(input.data()).completion;
             const auto context = CompletionAt(source, commandCursor);
-            auto expression = context.receiver;
-            if (!context.callReceiver.empty()) {
-                if (!expression.empty())
-                    expression += " + ";
-                expression += context.callReceiver;
-            }
-            RefreshCompletionMetadata(std::move(expression));
+            RefreshCompletionMetadata(CompletionMetadataExpression(context));
             completion = {};
             if (promptActive || focusCommand) {
                 if (const auto environment = CompletionMetadataSnapshot())
@@ -649,5 +643,6 @@ namespace elder_shell {
         SKSEMenuFramework::AddSectionItem("Variables", RenderVariables);
         SKSEMenuFramework::AddSectionItem("Instances", RenderInstances);
         SKSEMenuFramework::AddSectionItem("Papyrus", RenderPapyrus);
+        SKSEMenuFramework::AddSectionItem("Settings", RenderSettings);
     }
 }

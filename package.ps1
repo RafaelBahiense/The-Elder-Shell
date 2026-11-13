@@ -88,6 +88,7 @@ Add-Tree $binary (Join-Path $root 'build/services/Scripts') 'Scripts'
 Add-Tree $binary (Join-Path $root 'src/papyrus') 'Source/Scripts'
 Add-File $binary (Join-Path $root 'LICENSE') ('docs/' + $identity.binaryName + '/LICENSE')
 Add-Tree $binary (Join-Path $root 'licenses') ('docs/' + $identity.binaryName + '/licenses')
+Add-Tree $binary (Join-Path $root 'tools/terminal') 'Tools/TheElderShell'
 
 $source = @{}
 foreach ($directory in @('src', 'tests', 'tools', 'cmake', 'docs', 'licenses', '.github')) {

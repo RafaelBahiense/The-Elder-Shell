@@ -7,6 +7,7 @@
 | `src/native/compiler/` | Signature declarations, embedded Caprica sessions and PEX integrity |
 | `src/native/vm/` | Skyrim integration, metadata snapshots and VM dispatch |
 | `src/native/ui/` | Menu, transcript, instance explorer and command history |
+| `src/native/terminal/` | Local named-pipe transport, framing and value-only request polling |
 | `src/native/runtime/` | SKSE lifecycle, input interception and Skyrim console dispatch |
 | `src/papyrus/` | Quest-owned service scripts and normal latent quest startup |
 | `src/plugin/` | Mutagen definitions generating the service ESP |
@@ -48,3 +49,4 @@ not require editing a source list.
 See [compiled evaluation](compiled-evaluation.md) and
 [VM integration](vm-integration.md) for execution contracts.
 See [compiler embedding](embedded-compiler.md) for dependency and session details.
+See [terminal transport](terminal-protocol.md) for connection and request ownership.

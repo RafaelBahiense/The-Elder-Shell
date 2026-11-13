@@ -6,6 +6,7 @@
 #include "PackageFlags.h"
 #include "FactionCleanup.h"
 #include "Diagnostics.h"
+#include "terminal/Settings.h"
 
 #include <spdlog/sinks/basic_file_sink.h>
 
@@ -19,6 +20,7 @@ SKSEPluginInfo(.Version = REL::Version{mod::info::VersionMajor, mod::info::Versi
     void OnMessage(SKSE::MessagingInterface::Message * message) {
         switch (message->type) {
             case SKSE::MessagingInterface::kDataLoaded:
+                elder_shell::terminal::Initialize();
                 elder_shell::RegisterMenu();
                 break;
             case SKSE::MessagingInterface::kPreLoadGame:

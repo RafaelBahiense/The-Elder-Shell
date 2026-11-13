@@ -90,7 +90,7 @@ namespace {
 
     int SmokeTest() {
         using namespace elder_shell;
-        if (SKSEMenuFramework::Pages.size() != 4)
+        if (SKSEMenuFramework::Pages.size() != 5)
             return 10;
         if (session->valid && (CaptureMenuSession().input != session->menu.input ||
                                Snapshot().size() != session->requests.Entries().size()))

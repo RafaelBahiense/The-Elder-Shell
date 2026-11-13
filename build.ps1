@@ -88,6 +88,11 @@ switch ($Target) {
         Copy-Item -LiteralPath (Join-Path $build ($identity.binaryName + '.dll')) -Destination $plugins
         Copy-Item -LiteralPath (Join-Path $build 'services/TheElderShell.esp') -Destination $package
         Copy-Item -LiteralPath (Join-Path $build 'services/Scripts') -Destination $package -Recurse
+        $terminal = Join-Path $package 'Tools/TheElderShell'
+        [IO.Directory]::CreateDirectory($terminal) | Out-Null
+        Copy-Item -LiteralPath (Join-Path $root 'tools/terminal/Connect-ElderShell.ps1') -Destination $terminal
+        Copy-Item -LiteralPath (Join-Path $root 'tools/terminal/TerminalInput.psm1') -Destination $terminal
+        Copy-Item -LiteralPath (Join-Path $root 'tools/terminal/README.md') -Destination $terminal
         $notices = Join-Path $package ('docs/' + $identity.binaryName)
         [IO.Directory]::CreateDirectory((Join-Path $notices 'licenses')) | Out-Null
         Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination $notices

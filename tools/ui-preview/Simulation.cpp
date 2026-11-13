@@ -3,6 +3,7 @@
 #include "runtime/CompletionInput.h"
 #include "runtime/PapyrusBacklog.h"
 #include "shell/Command.h"
+#include "terminal/Settings.h"
 #include <chrono>
 #include <format>
 
@@ -15,6 +16,7 @@ namespace {
     EvaluationEnvironment metadata;
     PapyrusBacklog backlog;
     bool ready = true;
+    elder_shell::terminal::SettingsStatus terminalSettings;
     std::vector<std::pair<Ticket, std::chrono::steady_clock::time_point>> pending;
 
     void Record(std::string command, std::string result, bool rejected = false) {
@@ -38,6 +40,17 @@ namespace {
 
         variables.variables.push_back({"player", {1, 0}, actor});
         metadata.variables.push_back({"Actor", "player"});
+    }
+}
+
+namespace elder_shell::terminal {
+    SettingsStatus SettingsSnapshot() {
+        return terminalSettings;
+    }
+
+    void SetEnabled(bool enabled) {
+        terminalSettings.enabled = enabled;
+        terminalSettings.server = {enabled, false, "TheElderShell-preview", {}};
     }
 }
 
