@@ -68,6 +68,8 @@ if(WIN32)
     "${PROJECT_SOURCE_DIR}/tests/terminal-client.ps1" -Client "${PROJECT_SOURCE_DIR}/tools/terminal/Connect-ElderShell.ps1")
   add_test(NAME terminal_input COMMAND "${POWERSHELL_EXECUTABLE}" -NoProfile -File
     "${PROJECT_SOURCE_DIR}/tests/terminal-input.ps1" -ModulePath "${PROJECT_SOURCE_DIR}/tools/terminal/TerminalInput.psm1")
+  add_test(NAME include_analysis COMMAND "${POWERSHELL_EXECUTABLE}" -NoProfile -File
+    "${PROJECT_SOURCE_DIR}/tests/include-analysis.ps1")
   find_program(DOTNET_EXECUTABLE dotnet REQUIRED)
   file(GLOB PLUGIN_SOURCES CONFIGURE_DEPENDS src/plugin/*.cs src/plugin/*.csproj src/plugin/packages.lock.json
     tests/plugin/*.cs tests/plugin/*.csproj tests/plugin/packages.lock.json)

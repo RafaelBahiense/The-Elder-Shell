@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 #include "Server.h"
 
 namespace elder_shell::terminal {

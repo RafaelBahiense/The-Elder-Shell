@@ -2,9 +2,10 @@
 #include "Protocol.h"
 #include <Windows.h>
 #include <sddl.h>
-#include <array>
 #include <chrono>
 #include <cstdint>
+#include <exception>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <stdexcept>

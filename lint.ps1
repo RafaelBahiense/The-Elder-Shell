@@ -1,41 +1,52 @@
 [CmdletBinding()]
-param([switch] $Fix, [switch] $NativeAnalysis, [string] $ClangFormat)
+param(
+    [ValidateSet('All', 'CSharp', 'Cpp')][string] $Language = 'All',
+    [switch] $Fix,
+    [switch] $NativeAnalysis,
+    [switch] $IncludeAnalysis,
+    [string[]] $IncludeScope,
+    [string] $ClangFormat,
+    [string] $ClangTidy
+)
 
 $ErrorActionPreference = 'Stop'
-if (-not $ClangFormat) {
-    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
-    if (Test-Path -LiteralPath $vswhere) {
-        $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-        foreach ($relative in @('VC/Tools/Llvm/x64/bin/clang-format.exe', 'VC/Tools/Llvm/bin/clang-format.exe')) {
-            if ($vs -and (Test-Path -LiteralPath (Join-Path $vs $relative))) {
-                $ClangFormat = Join-Path $vs $relative
-                break
-            }
+. (Join-Path $PSScriptRoot 'tools/IncludeAnalysis.ps1')
+. (Join-Path $PSScriptRoot 'tools/NativeEnvironment.ps1')
+if (($NativeAnalysis -or $IncludeAnalysis) -and $Language -eq 'CSharp') { throw 'Native/include analysis requires Cpp or All.' }
+if (($IncludeScope -or $ClangTidy) -and !$IncludeAnalysis) { throw '-IncludeScope and -ClangTidy require -IncludeAnalysis.' }
+
+Push-Location $PSScriptRoot
+try {
+    if ($Language -in @('All', 'Cpp')) {
+        $ClangFormat = Resolve-ClangTool 'clang-format' $ClangFormat
+        $files = @(foreach ($directory in @('src/native', 'tests/native', 'tools')) {
+            Get-ChildItem -LiteralPath $directory -Recurse -File |
+                Where-Object Extension -In @('.cpp', '.h', '.hpp') | ForEach-Object FullName
+        })
+        if ($IncludeAnalysis) {
+            Initialize-NativeEnvironment
+            $selected = @(Select-IncludeAnalysisFiles -Root $PSScriptRoot -Files $files -Scope $IncludeScope)
+            $ClangTidy = Resolve-ClangTool 'clang-tidy' $ClangTidy
+            Invoke-IncludeAnalysis -Root $PSScriptRoot -Native (Join-Path $PSScriptRoot 'build') -ClangTidy $ClangTidy -Files $selected -Fix:$Fix
+        }
+        $flags = @(if ($Fix) { '-i' } else { '--dry-run'; '--Werror' })
+        for ($offset = 0; $offset -lt $files.Count; $offset += 64) {
+            $batch = @($files | Select-Object -Skip $offset -First 64)
+            & $ClangFormat '--style=file' '--fallback-style=none' @flags @batch
+            if ($LASTEXITCODE -ne 0) { throw 'C++ formatting failed. Run ./lint.ps1 -Fix and review the changes.' }
         }
     }
-    if (-not $ClangFormat) {
-        $command = Get-Command clang-format -CommandType Application -ErrorAction SilentlyContinue
-        if ($command) { $ClangFormat = $command.Source }
+    if ($Language -in @('All', 'CSharp')) {
+        foreach ($project in @('src/plugin/TheElderShell.Plugin.csproj', 'tests/plugin/TheElderShell.Plugin.Tests.csproj')) {
+            $arguments = @('format', $project, '--no-restore', '--severity', 'info')
+            if (!$Fix) { $arguments += '--verify-no-changes' }
+            & dotnet @arguments
+            if ($LASTEXITCODE -ne 0) { throw 'C# formatting failed. Run ./lint.ps1 -Fix and review the changes.' }
+        }
     }
-}
-if (-not $ClangFormat) { throw 'clang-format was not found. Supply -ClangFormat with an existing executable path.' }
-
-$files = foreach ($directory in @('src/native', 'tests/native', 'tools')) {
-    Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot $directory) -Recurse -File |
-        Where-Object Extension -In @('.cpp', '.h', '.hpp') | ForEach-Object FullName
-}
-$flags = @(if ($Fix) { '-i' } else { '--dry-run'; '--Werror' })
-& $ClangFormat '--style=file' '--fallback-style=none' @flags @files
-if ($LASTEXITCODE -ne 0) { throw 'C++ formatting failed. Run ./lint.ps1 -Fix and review the changes.' }
-
-foreach ($project in @('src/plugin/TheElderShell.Plugin.csproj', 'tests/plugin/TheElderShell.Plugin.Tests.csproj')) {
-    $arguments = @('format', (Join-Path $PSScriptRoot $project), '--no-restore', '--severity', 'info')
-    if (-not $Fix) { $arguments += '--verify-no-changes' }
-    & dotnet @arguments
-    if ($LASTEXITCODE -ne 0) { throw 'C# formatting failed. Run ./lint.ps1 -Fix and review the changes.' }
-}
-if ($NativeAnalysis) {
-    & (Join-Path $PSScriptRoot 'build.ps1') -Target Analyze
-    if ($LASTEXITCODE -ne 0) { throw 'Native analysis failed.' }
-}
-Write-Host 'Lint passed.'
+    if ($NativeAnalysis) {
+        & (Join-Path $PSScriptRoot 'build.ps1') -Target Analyze
+        if ($LASTEXITCODE -ne 0) { throw 'Native analysis failed.' }
+    }
+    Write-Host 'Lint passed.'
+} finally { Pop-Location }

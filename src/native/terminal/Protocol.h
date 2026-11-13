@@ -4,6 +4,7 @@
 #include "shell/Completion.h"
 #include <charconv>
 #include <algorithm>
+#include <cstddef>
 #include <system_error>
 #include <cstdint>
 #include <string>

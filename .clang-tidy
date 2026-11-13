@@ -1,0 +1,6 @@
+Checks: '-*,misc-include-cleaner'
+WarningsAsErrors: 'misc-include-cleaner'
+CheckOptions:
+  # The Windows SDK exposes its component headers through Windows.h; individual
+  # component headers are not independently includable in arbitrary order.
+  misc-include-cleaner.IgnoreHeaders: '.*[\\/]Windows Kits[\\/].*'

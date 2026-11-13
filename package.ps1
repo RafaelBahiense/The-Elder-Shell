@@ -4,6 +4,7 @@ param([string] $Tag)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $identity = [IO.File]::ReadAllText((Join-Path $root 'mod.json')) | ConvertFrom-Json
+if ($Tag -and $Tag -cne "v$($identity.version)") { throw "Release tag must match mod.json: v$($identity.version)" }
 & (Join-Path $root 'build.ps1') -Target Build
 if ($LASTEXITCODE -ne 0) { throw 'Build failed; no release archives were produced.' }
 
@@ -13,7 +14,6 @@ if ($cache -notmatch '(?m)^CMAKE_PROJECT_VERSION:STATIC=([0-9]+\.[0-9]+\.[0-9]+)
 }
 $version = $identity.version
 if ($Matches[1] -cne $version) { throw 'Configured version does not match mod.json.' }
-if ($Tag -and $Tag -cne "v$version") { throw "Release tag must match mod.json: v$version" }
 $dist = Join-Path $root 'build/dist'
 [IO.Directory]::CreateDirectory($dist) | Out-Null
 $baseName = "$($identity.binaryName)-$version"
@@ -29,7 +29,8 @@ function Add-Tree($Files, [string] $Directory, [string] $Prefix) {
         if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "Refusing linked archive input: $($item.FullName)" }
         if (-not $item.PSIsContainer) {
             $relative = $item.FullName.Substring($Directory.TrimEnd('\', '/').Length + 1)
-            Add-File $Files $item.FullName "$Prefix/$relative"
+            $name = if ($Prefix) { "$Prefix/$relative" } else { $relative }
+            Add-File $Files $item.FullName $name
         }
     }
 }
@@ -82,13 +83,10 @@ function Write-Archive([string] $Destination, $Files) {
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $binary = @{}
-Add-File $binary (Join-Path $root ('build/' + $identity.binaryName + '.dll')) ('SKSE/Plugins/' + $identity.binaryName + '.dll')
-Add-File $binary (Join-Path $root 'build/services/TheElderShell.esp') 'TheElderShell.esp'
-Add-Tree $binary (Join-Path $root 'build/services/Scripts') 'Scripts'
-Add-Tree $binary (Join-Path $root 'src/papyrus') 'Source/Scripts'
-Add-File $binary (Join-Path $root 'LICENSE') ('docs/' + $identity.binaryName + '/LICENSE')
-Add-Tree $binary (Join-Path $root 'licenses') ('docs/' + $identity.binaryName + '/licenses')
-Add-Tree $binary (Join-Path $root 'tools/terminal') 'Tools/TheElderShell'
+Add-Tree $binary (Join-Path $root 'build/package') ''
+if ($binary.Keys | Where-Object { $_ -match '(?i)^(src|source)/|\.(psc|cpp|h|hpp|pdb|ini)$' }) {
+    throw 'The installable package contains source, debug symbols or local settings.'
+}
 
 $source = @{}
 foreach ($directory in @('src', 'tests', 'tools', 'cmake', 'docs', 'licenses', '.github')) {
@@ -97,7 +95,7 @@ foreach ($directory in @('src', 'tests', 'tools', 'cmake', 'docs', 'licenses', '
     }
 }
 foreach ($file in (Get-ChildItem -LiteralPath $root -File -Force)) {
-    if ($file.Extension -eq '.ps1' -or $file.Name -in @('mod.json', 'CMakeLists.txt', 'vcpkg.json', 'global.json', 'Directory.Build.props', 'NuGet.Config', 'README.md', 'LICENSE', '.clang-format', '.editorconfig', '.gitignore', 'AGENTS.md')) {
+    if ($file.Extension -eq '.ps1' -or $file.Name -in @('mod.json', 'CMakeLists.txt', 'vcpkg.json', 'global.json', 'Directory.Build.props', 'NuGet.Config', 'README.md', 'CHANGELOG.md', 'LICENSE', '.clang-format', '.clang-tidy', '.editorconfig', '.gitignore', 'AGENTS.md')) {
         Add-File $source $file.FullName $file.Name
     }
 }
@@ -121,6 +119,7 @@ Add-File $source $upstream 'external/Caprica.tar.gz'
 # Every ZIP is complete before replacing its prior published filename.
 Write-Archive (Join-Path $dist "$baseName-source.zip") $source
 Write-Archive (Join-Path $dist "$baseName.zip") $binary
+& (Join-Path $root 'tools/VerifyArchives.ps1') -Binary (Join-Path $dist "$baseName.zip") -Source (Join-Path $dist "$baseName-source.zip")
 $checksums = foreach ($name in @("$baseName.zip", "$baseName-source.zip")) {
     $hash = (Get-FileHash -LiteralPath (Join-Path $dist $name) -Algorithm SHA256).Hash.ToLowerInvariant()
     "$hash  $name"
