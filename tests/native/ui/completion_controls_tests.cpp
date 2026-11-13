@@ -4,6 +4,13 @@
 
 using namespace elder_shell;
 
+TEST_CASE("Completion reserves a stable panel while retaining a usable editor in short windows") {
+    CHECK(CompletionPanelHeight(500, 20, 8, 4) == doctest::Approx(176));
+    CHECK(CompletionPanelHeight(200, 20, 8, 4) == doctest::Approx(136));
+    CHECK(CompletionPanelHeight(150, 20, 8, 4) == 0);
+    CHECK(CompletionPanelHeight(0, 20, 8, 4) == 0);
+}
+
 TEST_CASE("Visible completions own navigation and acceptance") {
     CHECK(CompletionShortcut(CompletionKey::Up, true) == CompletionAction::Previous);
     CHECK(CompletionShortcut(CompletionKey::Down, true) == CompletionAction::Next);

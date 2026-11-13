@@ -200,8 +200,68 @@ namespace {
         };
         for (int i = 0; i < 3; ++i)
             consoleFrame();
+        const auto editorHeight = [&] {
+            const auto* state = ImGui::GetInputTextState(ImGui::GetActiveID());
+            if (state)
+                for (const auto* window : ImGui::GetCurrentContext()->Windows)
+                    if (window->ChildId == state->ID)
+                        return window->Size.y;
+            return -1.0f;
+        };
+        const auto completionChoicesHeight = [&] {
+            for (const auto* window : ImGui::GetCurrentContext()->Windows) {
+                const auto name = std::string_view(window->Name);
+                if (window->Active && name.starts_with("Shell editing test/") &&
+                    name.find("/Completion choices_") != std::string_view::npos)
+                    return window->Size.y;
+            }
+            return -1.0f;
+        };
+        auto* initialEditor = ImGui::GetInputTextState(ImGui::GetActiveID());
+        if (!initialEditor || initialEditor->GetCursorPos() != initialEditor->TextLen)
+            return 30;
+        const auto initialHeight = editorHeight();
+        const auto initialChoicesHeight = completionChoicesHeight();
+        if (initialHeight <= 0)
+            return 31;
+        if (initialChoicesHeight <= 0)
+            return 35;
+        press(ImGuiKey_Home);
+        press(ImGuiKey_LeftArrow);
+        io.AddKeyEvent(ImGuiMod_Ctrl, true);
+        press(ImGuiKey_Home);
+        io.AddKeyEvent(ImGuiMod_Ctrl, false);
+        consoleFrame();
+        initialEditor = ImGui::GetInputTextState(ImGui::GetActiveID());
+        if (!initialEditor || initialEditor->GetCursorPos() != initialEditor->TextLen)
+            return 32;
+        io.AddInputCharactersUTF8("player.Get");
+        consoleFrame();
+        consoleFrame();
+        if (editorHeight() != initialHeight)
+            return 33;
+        if (completionChoicesHeight() != initialChoicesHeight)
+            return 36;
+        press(ImGuiKey_Escape);
+        if (editorHeight() != initialHeight)
+            return 34;
+        MenuSession signatureDraft;
+        constexpr char signatureInput[] = "player.GetActorValue(";
+        std::copy(std::begin(signatureInput), std::end(signatureInput), signatureDraft.input.begin());
+        RestoreMenuSession(signatureDraft);
+        for (int i = 0; i < 3; ++i)
+            consoleFrame();
+        if (completionChoicesHeight() <= 0 || completionChoicesHeight() >= initialChoicesHeight)
+            return 37;
+        if (editorHeight() != initialHeight)
+            return 38;
+        RestoreMenuSession({});
+        consoleFrame();
+        consoleFrame();
         io.AddInputCharactersUTF8("player.GetLevel()");
         consoleFrame();
+        if (editorHeight() != initialHeight)
+            return 33;
         if (std::string_view(CaptureMenuSession().input.data()) != "player.GetLevel()")
             return 16;
         const auto beforeEnter = Snapshot().size();

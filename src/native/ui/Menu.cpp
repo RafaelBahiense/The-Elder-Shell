@@ -224,6 +224,7 @@ namespace elder_shell {
                 history.ResetNavigation();
             historyReplacement = false;
             SyncShell(selection);
+            shell.ConstrainCaret(selection, ImGuiMCP::IsMouseDown(0));
             const auto text = shell.Text();
             if (std::string_view(data->Buf, static_cast<std::size_t>(data->BufTextLen)) != text) {
                 ImGuiMCP::ImGuiInputTextCallbackDataManager::DeleteChars(data, 0, data->BufTextLen);
@@ -501,7 +502,7 @@ namespace elder_shell {
                 Run(force);
         }
 
-        float PrepareCompletion() {
+        void PrepareCompletion() {
             const auto source = ReadShellInput(input.data()).completion;
             const auto context = CompletionAt(source, commandCursor);
             auto expression = context.receiver;
@@ -520,35 +521,43 @@ namespace elder_shell {
             suggestions.Update(std::format("{}:{}", commandCursor, input.data()), completion.items.size());
             if (!suggestions.Visible())
                 completion.items.clear();
-            const auto rows = std::min(Suggestions::VisibleRows, completion.items.size()) +
-                              (completion.signature.empty() ? 0 : 1) + (completion.parameter.empty() ? 0 : 1) +
-                              (completion.items.empty() ? 0 : 1);
-            return rows == 0 ? 0
-                             : static_cast<float>(rows) * ImGuiMCP::GetTextLineHeightWithSpacing() +
-                                   ImGuiMCP::GetStyle()->WindowPadding.y * 2 + ImGuiMCP::GetStyle()->ItemSpacing.y;
         }
 
         void RenderCompletion(float height) {
             if (height <= 0)
                 return;
-            if (ImGuiMCP::BeginChild("Completion", ImGuiMCP::ImVec2{0, height - ImGuiMCP::GetStyle()->ItemSpacing.y})) {
-                if (!completion.signature.empty())
-                    ImGuiMCP::TextUnformatted(completion.signature.c_str());
-                if (!completion.parameter.empty())
-                    ImGuiMCP::TextUnformatted(completion.parameter.c_str());
-                if (!completion.items.empty())
-                    ImGuiMCP::Text("%zu/%zu | Up/Down: select | Tab: accept | Enter: run | Esc: dismiss",
-                                   suggestions.Selected() + 1, completion.items.size());
-                const bool revealSelection = suggestions.TakeRevealRequest();
-                for (std::size_t i = 0; i < completion.items.size(); ++i) {
-                    const auto& item = completion.items[i];
-                    const auto label = item.name + " : " + item.description;
-                    if (ImGuiMCP::Selectable(label.c_str(), i == suggestions.Selected())) {
-                        chosenCompletion = item;
-                        focusCommand = true;
+            if (ImGuiMCP::BeginChild("Completion", ImGuiMCP::ImVec2{0, height}, ImGuiMCP::ImGuiChildFlags_Border)) {
+                ImGuiMCP::TextColored(ui::Accent, "Suggestions | %zu matches", completion.items.size());
+                const unsigned detailRows = static_cast<unsigned>(!completion.signature.empty()) +
+                                            static_cast<unsigned>(!completion.parameter.empty());
+                const auto detailHeight =
+                    detailRows ? static_cast<float>(detailRows) * ImGuiMCP::GetTextLineHeightWithSpacing() +
+                                     ImGuiMCP::GetStyle()->ItemSpacing.y + 1
+                               : 0.0f;
+                ImGuiMCP::ImVec2 available;
+                ImGuiMCP::GetContentRegionAvail(&available);
+                if (ImGuiMCP::BeginChild("Completion choices", {0, std::max(1.0f, available.y - detailHeight)})) {
+                    if (completion.items.empty())
+                        ImGuiMCP::TextDisabled("No suggestions");
+                    const bool revealSelection = suggestions.TakeRevealRequest();
+                    for (std::size_t i = 0; i < completion.items.size(); ++i) {
+                        const auto& item = completion.items[i];
+                        const auto label = item.name + " : " + item.description;
+                        if (ImGuiMCP::Selectable(label.c_str(), i == suggestions.Selected())) {
+                            chosenCompletion = item;
+                            focusCommand = true;
+                        }
+                        if (revealSelection && i == suggestions.Selected())
+                            ImGuiMCP::SetScrollHereY();
                     }
-                    if (revealSelection && i == suggestions.Selected())
-                        ImGuiMCP::SetScrollHereY();
+                }
+                ImGuiMCP::EndChild();
+                if (detailRows) {
+                    ImGuiMCP::Separator();
+                    if (!completion.signature.empty())
+                        ImGuiMCP::TextUnformatted(completion.signature.c_str());
+                    if (!completion.parameter.empty())
+                        ImGuiMCP::TextColored(ui::Pending, "%s", completion.parameter.c_str());
                 }
             }
             ImGuiMCP::EndChild();
@@ -590,7 +599,9 @@ namespace elder_shell {
             ImGuiMCP::GetContentRegionAvail(&available);
             const auto line = ImGuiMCP::GetTextLineHeightWithSpacing();
             const auto gap = ImGuiMCP::GetStyle()->ItemSpacing.y;
-            auto assistanceHeight = std::min(PrepareCompletion(), std::max(0.0f, available.y - line * 3));
+            PrepareCompletion();
+            auto assistanceHeight =
+                CompletionPanelHeight(available.y, line, ImGuiMCP::GetStyle()->WindowPadding.y, gap);
             if (assistanceHeight < line) {
                 suggestions.Dismiss();
                 completion.items.clear();

@@ -53,6 +53,28 @@ TEST_CASE("Shell transcript remains immutable across edits and overlapping selec
     CHECK(document.Text() == prefix + "keepedit");
 }
 
+TEST_CASE("The editable caret stays after the prompt while transcript selections remain copyable") {
+    ShellDocument document;
+    ShellSelection selection;
+    document.Rebase("> old\n42\n\n> ", selection);
+    document.ConstrainCaret(selection);
+    CHECK(selection.cursor == document.Boundary());
+    document.SetDraft("draft", selection);
+    selection = {0, 0, 0};
+    document.ConstrainCaret(selection);
+    CHECK(selection.cursor == document.Boundary());
+    CHECK(selection.start == selection.end);
+    selection = {2, 0, 2};
+    document.ConstrainCaret(selection);
+    CHECK(selection.start == 0);
+    CHECK(selection.end == 2);
+    selection = {1, 1, 1};
+    document.ConstrainCaret(selection, true);
+    CHECK(selection.cursor == 1);
+    document.ConstrainCaret(selection, false);
+    CHECK(selection.cursor == document.Boundary());
+}
+
 TEST_CASE("Async output preserves the draft and its cursor while selection spans older results") {
     ShellDocument document;
     ShellSelection selection;

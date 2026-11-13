@@ -151,6 +151,13 @@ namespace elder_shell {
             return prefix_ + draft_;
         }
 
+        void ConstrainCaret(ShellSelection& selection, bool mouseSelecting = false) const {
+            if (mouseSelecting || selection.start != selection.end)
+                return;
+            const auto cursor = std::clamp(selection.cursor, Boundary(), Boundary() + draft_.size());
+            selection = {cursor, cursor, cursor};
+        }
+
         void SetDraft(std::string_view draft, ShellSelection& selection) {
             draft_ = draft.substr(0, MaximumDraft);
             selection = {Boundary() + draft_.size(), Boundary() + draft_.size(), Boundary() + draft_.size()};

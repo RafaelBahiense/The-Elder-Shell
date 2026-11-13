@@ -1,6 +1,13 @@
 #pragma once
+#include "Suggestions.h"
+#include <algorithm>
 
 namespace elder_shell {
+    inline float CompletionPanelHeight(float available, float line, float padding, float gap) {
+        const auto desired = line * static_cast<float>(Suggestions::VisibleRows + 3) + padding * 2;
+        const auto budget = std::max(0.0f, available - line * 3 - gap);
+        return budget < line * 4 + padding * 2 ? 0 : std::min(desired, budget);
+    }
     enum class CompletionKey { Up, Down, Enter, Tab, Escape, Space };
     enum class CompletionAction { None, Previous, Next, Accept, Dismiss, Open, Submit };
 
