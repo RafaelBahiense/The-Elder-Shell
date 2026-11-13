@@ -30,6 +30,16 @@ the older entry point. `ElderShell.Console.Execute` reaches it through a real
 quest-attached Papyrus native function and returns immediate output as a String.
 An optional reference applies to that dispatch only. Deferred engine work is not awaited.
 
+## Completion input
+
+Escape interception wraps the menu framework's input-dispatch call. Installation
+requires a five-byte relative call in executable game memory whose destination
+is executable code in `SKSEMenuFramework.dll`, directly or through CommonLib's
+`FF 25 00000000` trampoline. Memory ranges are checked before reading. Unrecognized
+instructions or destinations leave the call untouched and produce a log warning;
+Escape then follows the framework's normal menu-closing behavior. These checks
+recognize the hook structure and module ownership, not the destination's semantics.
+
 ## Built-in services
 
 `TheElderShell.esp` contains one start-enabled, Run Once service quest (local ID
@@ -60,8 +70,8 @@ normal latent `Quest.Start()` and returns before/after reports with its Boolean
 result. It neither fabricates alias bindings nor treats dispatch as completion.
 Save loads retain the existing ticket/gate interruption contract; no call is replayed.
 
-Quest diagnostics and repairs are split between `QuestDiagnostics.cpp`,
-`ScriptDiagnostics.cpp` and `QuestRecovery.cpp`. Native registrations remain
+Quest diagnostics and repairs live in `QuestDiagnostics.cpp`,
+`ScriptDiagnostics.cpp`, `QuestRecovery.cpp` and `QuestStartRecovery.cpp`. Native registrations remain
 non-tasklet calls. Stack snapshots hold the VM running-stack lock while reading
 stable latent-wait frames; executing/frozen frames are not dereferenced. Reports
 retain copied values, never frame pointers. Attached object references are copied
@@ -79,8 +89,19 @@ Snapshots are observational and are not rollback records.
 
 Condition evaluation uses a whitelist of native queries with sufficient context.
 Unknown functions and alias/package/event contexts are reported without invoking
-them. Synthetic latent results and direct stage-wait flag edits have no registered
-repair operation: native cancellation/completion ownership is not mapped.
+them. Generic synthetic latent results and direct stage-wait flag edits have no
+registered repair operation.
+
+Startup failure recovery maps `QuestCallbackMgr` on SSE 1.6.1170 only. It verifies
+all three vtables and fingerprints the entire engine completion routine
+(Address Library ID 53713). Under the startup-map lock it requires a single
+matching `SetCurrentStageID` waiter, no stage-completion registration and a
+quest-owned paused chain. The VM lock is released before engine dispatch. The
+failed-start branch runs in the normal caller's TLS task context, returns `False`
+and destroys the waiter vector through engine code. Its empty map record remains
+available for normal event cleanup; a later event cannot return to the old waiter
+again. Quest flags and script continuations remain engine-owned. This path still
+requires in-game validation of the resulting quest lifecycle.
 See [quest diagnostics](quest-diagnostics.md) for supported reports and limits.
 
 ## Ownership
