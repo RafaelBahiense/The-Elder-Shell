@@ -1,5 +1,7 @@
 #include "shell/Backlog.h"
 #include <doctest/doctest.h>
+#include <limits>
+#include <sstream>
 
 using namespace elder_shell;
 
@@ -35,4 +37,62 @@ TEST_CASE("Backlog states distinguish native waits from memory and stack depende
     CHECK(BacklogStateName(3) == "Waiting on latent function");
     CHECK(BacklogStateName(4) != BacklogStateName(3));
     CHECK(BacklogStateName(99) == "Unknown state 99");
+}
+
+TEST_CASE("Uncaptured backlog does not invent zero counts and pending reads identify older data") {
+    PapyrusBacklog snapshot;
+    const auto empty = DescribeBacklog(snapshot);
+    CHECK(empty.find("Refresh to capture") != std::string::npos);
+    CHECK(empty.find("Registered stacks:") == std::string::npos);
+    snapshot.pending = snapshot.captured = true;
+    snapshot.registeredStacks = 12;
+    const auto pending = DescribeBacklog(snapshot);
+    CHECK(pending.find("previous snapshot") != std::string::npos);
+    CHECK(pending.find("Registered stacks: 12") != std::string::npos);
+}
+
+TEST_CASE("Backlog reports preserve counts coverage and receiver names without summing overlapping queues") {
+    PapyrusBacklog snapshot;
+    snapshot.captured = true;
+    snapshot.full = true;
+    snapshot.capturedAt = std::chrono::steady_clock::now();
+    snapshot.registeredStacks = 10;
+    snapshot.sampledStacks = 10;
+    snapshot.latentReturns = 2;
+    snapshot.suspendedOverflow = 174308;
+    snapshot.functionOverflow = 10080;
+    snapshot.sampledCalls = 184388;
+    snapshot.calls = {{"ExampleReceiver.OnLocationChange", 174308}, {"ExampleInventory.OnItemRemoved", 10080}};
+    snapshot.states = {{"Waiting on latent function", 2}, {"Running / scheduled", 8}};
+    snapshot.reportPath = "Papyrus-report.txt";
+    const auto text = DescribeBacklog(snapshot, snapshot.capturedAt + std::chrono::seconds(7));
+    CHECK(text.find("Captured 7 seconds ago") != std::string::npos);
+    CHECK(text.find("Suspended overflow entries: 174308") != std::string::npos);
+    CHECK(text.find("Function-message overflow entries: 10080") != std::string::npos);
+    CHECK(text.find("Overflow coverage complete: 1") != std::string::npos);
+    CHECK(text.find("Stack coverage complete: 1") != std::string::npos);
+    CHECK(text.find("174308\tExampleReceiver.OnLocationChange") != std::string::npos);
+    CHECK(text.find("Report: Papyrus-report.txt") != std::string::npos);
+    CHECK(text.find("Counts overlap; do not add them") != std::string::npos);
+    CHECK(text.find("Total:") == std::string::npos);
+    snapshot.sampledCalls = 3072;
+    snapshot.sampledStacks = 3;
+    const auto partial = DescribeBacklog(snapshot);
+    CHECK(partial.find("Overflow coverage complete: 0") != std::string::npos);
+    CHECK(partial.find("Stack coverage complete: 0") != std::string::npos);
+}
+
+TEST_CASE("Shell backlog view is bounded while the exported report preserves every retained group") {
+    PapyrusBacklog snapshot;
+    snapshot.captured = snapshot.full = true;
+    for (int i = 0; i < 50; ++i)
+        snapshot.calls.push_back({"Receiver.Call_" + std::to_string(i), 1});
+    const auto bounded = DescribeBacklog(snapshot);
+    CHECK(bounded.find("Receiver.Call_31") != std::string::npos);
+    CHECK(bounded.find("Receiver.Call_32") == std::string::npos);
+    CHECK(bounded.find("18 additional groups omitted") != std::string::npos);
+    std::ostringstream file;
+    WriteBacklogReport(file, snapshot, std::numeric_limits<std::size_t>::max());
+    CHECK(file.str().find("Receiver.Call_49") != std::string::npos);
+    CHECK(file.str().find("additional groups omitted") == std::string::npos);
 }

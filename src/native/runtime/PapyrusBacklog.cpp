@@ -2,6 +2,9 @@
 #include <mutex>
 #include <fstream>
 #include <limits>
+#include <optional>
+#include <string>
+#include <utility>
 
 namespace elder_shell {
     namespace {
@@ -36,26 +39,7 @@ namespace elder_shell {
                                    .count();
             const auto path = *directory / std::format("TheElderShell-Papyrus-{}.txt", stamp);
             std::ofstream report(path);
-            report << "Papyrus backlog: full overflow report\n"
-                   << "Registered stacks: " << result.registeredStacks << '\n'
-                   << "Latent return registrations: " << result.latentReturns << '\n'
-                   << "Suspended overflow entries: " << result.suspendedOverflow << '\n'
-                   << "Function-message overflow entries: " << result.functionOverflow << '\n'
-                   << "Calls inspected: " << result.sampledCalls << '\n'
-                   << "Stacks inspected: " << result.sampledStacks << '\n'
-                   << "Overflow coverage complete: "
-                   << (result.sampledCalls ==
-                       static_cast<std::uint64_t>(result.suspendedOverflow) + result.functionOverflow)
-                   << "\n\nCount\tReceiver / function\n";
-            for (const auto& row : result.calls)
-                report << row.count << '\t' << row.name << '\n';
-            report << "\nCount\tStack state\n";
-            for (const auto& row : result.states)
-                report << row.count << '\t' << row.name << '\n';
-            report << "\nCounts overlap. Fixed queues are not inspected. Each collection is read under its own lock; "
-                      "this is not one atomic snapshot of the whole VM. Unknown metadata remains counted. "
-                      "Counts identify receivers, not producers, and are not CPU samples or wait durations. "
-                      "Full scans stop at one million entries per collection. No engine work was modified.\n";
+            WriteBacklogReport(report, result, std::numeric_limits<std::size_t>::max());
             report.close();
             if (report)
                 result.reportPath = path.string();
@@ -114,37 +98,63 @@ namespace elder_shell {
                 Export(result);
             return result;
         }
+
+        std::optional<std::uint64_t> BeginCapture(std::string& error) {
+            std::scoped_lock lock(backlogMutex);
+            if (backlog.pending) {
+                error = "Backlog capture is already pending; wait for it to finish.";
+                return std::nullopt;
+            }
+            if (!sessionReady) {
+                backlog.status = error = "Load a save or start a new game first.";
+                return std::nullopt;
+            }
+            backlog.pending = true;
+            backlog.status = "Snapshot queued on the game thread.";
+            return generation;
+        }
+
+        PapyrusBacklog CaptureAndPublish(std::uint64_t expected, bool full) {
+            {
+                std::scoped_lock lock(backlogMutex);
+                if (expected != generation || !sessionReady)
+                    return {.status = "Game session changed; backlog capture was discarded."};
+            }
+            PapyrusBacklog result;
+            try {
+                auto* ui = RE::UI::GetSingleton();
+                if (ui && ui->IsMenuOpen("Main Menu"))
+                    result.status = "Load a save or start a new game first.";
+                else
+                    result = Capture(full);
+            } catch (const std::exception& error) {
+                result.status = "Backlog capture failed: " + std::string(error.what());
+            }
+            std::scoped_lock lock(backlogMutex);
+            if (expected != generation || !sessionReady)
+                return {.status = "Game session changed; backlog capture was discarded."};
+            backlog = result;
+            return result;
+        }
     }
 
     void RefreshPapyrusBacklog(bool full) {
         auto* tasks = SKSE::GetTaskInterface();
-        std::uint64_t expected;
-        {
+        if (!tasks) {
             std::scoped_lock lock(backlogMutex);
-            if (backlog.pending)
-                return;
-            if (!sessionReady || !tasks) {
-                backlog.status = "Load a save or start a new game first.";
-                return;
-            }
-            expected = generation;
-            backlog.pending = true;
-            backlog.status = "Snapshot queued on the game thread.";
+            backlog.status = "SKSE task interface unavailable.";
+            return;
         }
-        tasks->AddTask([expected, full] {
-            {
-                std::scoped_lock lock(backlogMutex);
-                if (expected != generation || !sessionReady)
-                    return;
-            }
-            auto* ui = RE::UI::GetSingleton();
-            auto result = ui && ui->IsMenuOpen("Main Menu") ? PapyrusBacklog{} : Capture(full);
-            if (!result.captured && ui && ui->IsMenuOpen("Main Menu"))
-                result.status = "Load a save or start a new game first.";
-            std::scoped_lock lock(backlogMutex);
-            if (expected == generation && sessionReady)
-                backlog = std::move(result);
-        });
+        std::string error;
+        if (const auto expected = BeginCapture(error))
+            tasks->AddTask([expected = *expected, full] { CaptureAndPublish(expected, full); });
+    }
+
+    PapyrusBacklog CapturePapyrusBacklog(bool full) {
+        std::string error;
+        if (const auto expected = BeginCapture(error))
+            return CaptureAndPublish(*expected, full);
+        return {.status = std::move(error)};
     }
 
     PapyrusBacklog PapyrusBacklogSnapshot() {

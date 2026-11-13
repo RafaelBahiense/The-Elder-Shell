@@ -4,6 +4,8 @@
 #include <chrono>
 #include <cstdint>
 #include <map>
+#include <ostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -67,4 +69,56 @@ namespace elder_shell {
         std::vector<BacklogRow> states;
         std::vector<BacklogRow> calls;
     };
+
+    inline void WriteBacklogReport(std::ostream& output, const PapyrusBacklog& snapshot, std::size_t rows = 32,
+                                   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now()) {
+        output << "Papyrus backlog: " << (snapshot.full ? "full overflow report" : "quick snapshot") << '\n'
+               << "Status: " << snapshot.status << '\n';
+        if (snapshot.pending)
+            output << "Capture pending; any counts below belong to the previous snapshot.\n";
+        if (!snapshot.captured)
+            return;
+        const auto age = std::max(
+            std::int64_t{0}, static_cast<std::int64_t>(
+                                 std::chrono::duration_cast<std::chrono::seconds>(now - snapshot.capturedAt).count()));
+        output << "Captured " << age << " seconds ago\n"
+               << "Registered stacks: " << snapshot.registeredStacks << '\n'
+               << "Latent return registrations: " << snapshot.latentReturns << '\n'
+               << "Suspended overflow entries: " << snapshot.suspendedOverflow << '\n'
+               << "Function-message overflow entries: " << snapshot.functionOverflow << '\n'
+               << "Calls inspected: " << snapshot.sampledCalls << '\n'
+               << "Stacks inspected: " << snapshot.sampledStacks << '\n'
+               << "Overflow coverage complete: "
+               << (snapshot.sampledCalls ==
+                   static_cast<std::uint64_t>(snapshot.suspendedOverflow) + snapshot.functionOverflow)
+               << '\n'
+               << "Stack coverage complete: " << (snapshot.sampledStacks == snapshot.registeredStacks) << '\n';
+        if (!snapshot.reportPath.empty())
+            output << "Report: " << snapshot.reportPath << '\n';
+        const auto writeRows = [&](const char* name, const std::vector<BacklogRow>& groups) {
+            output << '\n' << name << " (" << std::min(rows, groups.size()) << " groups shown)\nCount\tName\n";
+            for (std::size_t index = 0; index < std::min(rows, groups.size()); ++index)
+                output << groups[index].count << '\t' << groups[index].name << '\n';
+            if (groups.empty())
+                output << "No entries in the inspected collections.\n";
+            if (groups.size() > rows)
+                output << groups.size() - rows << " additional groups omitted from this view.\n";
+        };
+        writeRows(snapshot.full ? "Queued calls" : "Queued call sample", snapshot.calls);
+        writeRows("Stack states", snapshot.states);
+        if (!snapshot.full)
+            output
+                << "\nQuick snapshots retain the top 32 groups from bounded samples, not a representative breakdown.\n";
+        output << "\nCounts overlap; do not add them. Fixed queues are not inspected. Collections are read under "
+                  "separate locks, not as one atomic VM snapshot. Unknown metadata remains counted. "
+                  "Receiver names do not identify event producers. Counts are not CPU costs or wait durations. "
+                  "Full scans stop at one million entries per collection. No engine work was modified.\n";
+    }
+
+    inline std::string DescribeBacklog(const PapyrusBacklog& snapshot,
+                                       std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now()) {
+        std::ostringstream output;
+        WriteBacklogReport(output, snapshot, 32, now);
+        return output.str();
+    }
 }

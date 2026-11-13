@@ -1,4 +1,5 @@
 #include "Diagnostics.h"
+#include "PapyrusBacklog.h"
 #include "Services.h"
 #include "shell/Recovery.h"
 #include "shell/Services.h"
@@ -184,6 +185,16 @@ namespace elder_shell::diagnostics {
             return Valid(self) ? Stacks(owner, script) : "Elder Shell service receiver unavailable.";
         }
 
+        std::string InspectBacklog(RE::TESQuest* self, bool full) {
+            return Valid(self) ? DescribeBacklog(CapturePapyrusBacklog(full))
+                               : "Elder Shell service receiver unavailable.";
+        }
+
+        std::string ReadBacklog(RE::TESQuest* self) {
+            return Valid(self) ? DescribeBacklog(PapyrusBacklogSnapshot())
+                               : "Elder Shell service receiver unavailable.";
+        }
+
         std::string InspectStack(RE::TESQuest* self, std::int32_t id) {
             return Valid(self) ? Stack(static_cast<std::uint32_t>(id), false) : "Service receiver unavailable.";
         }
@@ -324,6 +335,8 @@ namespace elder_shell::diagnostics {
 
     void RegisterScriptDiagnostics(RE::BSScript::IVirtualMachine* vm) {
         vm->RegisterFunction("InspectStacks", services::ScriptsScript, InspectStacks);
+        vm->RegisterFunction("InspectBacklog", services::ScriptsScript, InspectBacklog);
+        vm->RegisterFunction("ReadBacklog", services::ScriptsScript, ReadBacklog);
         vm->RegisterFunction("InspectStack", services::ScriptsScript, InspectStack);
         vm->RegisterFunction("InspectLatentCall", services::ScriptsScript, InspectLatentCall);
         vm->RegisterFunction("InspectInstance", services::ScriptsScript, InspectInstance);

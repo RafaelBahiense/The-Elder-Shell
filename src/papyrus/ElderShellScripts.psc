@@ -5,6 +5,8 @@ String Function InspectPlugin(Actor target, String plugin) Native
 String Function RemovePlugin(Actor target, String plugin) Native
 
 String Function InspectStacks(Form owner = None, String script = "") Native
+String Function InspectBacklog(Bool full = False) Native
+String Function ReadBacklog() Native
 String Function InspectStack(Int stackID) Native
 String Function InspectLatentCall(Int stackID) Native
 String Function InspectInstance(Form owner, String script = "") Native

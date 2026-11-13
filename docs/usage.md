@@ -92,6 +92,18 @@ arrays retain live VM references. Removing a variable does not cancel its comman
 
 ## Papyrus backlog
 
+Capture a fresh snapshot from either shell:
+
+```papyrus
+ElderShell.Scripts.InspectBacklog(False)
+```
+
+Use `InspectBacklog(True)` for a full bounded scan and report file, or
+`ElderShell.Scripts.ReadBacklog()` to read the last menu/shell capture without
+rescanning. Reports include capture age, queue sizes, inspected counts, coverage
+and grouped receiver/function names. Shell output shows up to 32 groups; the
+full report file contains every retained group.
+
 Open **The Elder Shell → Papyrus** and click **Refresh snapshot** to inspect
 registered stacks, latent return registrations and overflow queue sizes.
 The tables group a bounded sample of queued calls and stack states. Refresh
@@ -138,7 +150,7 @@ services support ordinary Papyrus member syntax, completion and multiline execut
 | `Actors` | Inspect dialogue permissions and plugin data; clean actor data |
 | `AI` | Inspect packages, change interruption flags and remove plugin interrupt packages |
 | `Quests` | Inspect and restart quests; inspect or clear plugin aliases and stop matching quests |
-| `Scripts` | Inspect and remove indexed plugin script bindings on an actor |
+| `Scripts` | Inspect Papyrus backlogs, execution stacks and script instances; manage indexed actor script bindings |
 | `Console` | Execute Skyrim console commands and capture immediate output |
 
 ```papyrus
